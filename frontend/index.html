@@ -42,26 +42,9 @@
         -webkit-backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 0, 0, 0.1);
       }
-      .content-auto {
-        content-visibility: auto;
-      }
     }
   </style>
   <script src="config.js"></script>
-  <script>
-    // API基础URL验证
-    function validateApiBase() {
-      if (!API_BASE || API_BASE.includes('your-worker-name') || API_BASE.includes('your-account')) {
-        return false;
-      }
-      try {
-        new URL(API_BASE);
-        return true;
-      } catch {
-        return false;
-      }
-    }
-  </script>
 </head>
 <body class="min-h-screen transition-colors duration-300 bg-gradient-to-b from-dark-900 to-dark-800 text-white dark">
   <!-- 导航栏 -->
@@ -96,7 +79,7 @@
       </p>
     </div>
 
-    <!-- 上传区域（第一优先级） -->
+    <!-- 上传区域 -->
     <div id="upload-area" class="glass rounded-2xl p-10 mb-8 border-2 border-dashed border-gray-600 hover:border-primary transition-all duration-300 cursor-pointer">
       <div class="text-center">
         <i class="fa fa-cloud-upload text-7xl text-gray-500 mb-6"></i>
@@ -186,9 +169,6 @@
   </div>
 
   <script>
-    // 全局配置
-    let CONFIG = {};
-    
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('file-input');
     const uploadProgress = document.getElementById('upload-progress');
@@ -201,41 +181,13 @@
     const expireTime = document.getElementById('expire-time');
     const toast = document.getElementById('toast');
     const themeToggle = document.getElementById('theme-toggle');
-    const expireHoursText = document.getElementById('expire-hours-text');
-    const allowedTypesText = document.getElementById('allowed-types-text');
-    const maxSizeText = document.getElementById('max-size-text');
-    const footerExpireHours = document.getElementById('footer-expire-hours');
 
-    // 初始化页面配置
-    async function initPageConfig() {
-      if (!validateApiBase()) {
-        showToast('请配置正确的API_BASE地址，修改index.html中的API_BASE变量');
-        document.getElementById('subtitle').innerHTML = '⚠️ 请先配置后端Worker地址';
-        return;
-      }
-      
-      try {
-        const response = await fetch(`${API_BASE}/config`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        
-        if (data.success) {
-          CONFIG = data;
-          
-          expireHoursText.textContent = CONFIG.expireHours;
-          allowedTypesText.textContent = CONFIG.allowedTypesDisplay;
-          maxSizeText.textContent = CONFIG.maxFileSizeMB;
-          footerExpireHours.textContent = CONFIG.expireHours;
-          
-          fileInput.accept = CONFIG.allowedTypes.join(',');
-        }
-      } catch (error) {
-        console.error('加载配置失败:', error);
-        showToast('无法连接到后端，请检查API_BASE配置');
-        document.getElementById('subtitle').innerHTML = '⚠️ 后端连接失败，请检查配置';
-      }
+    // 初始化页面显示配置
+    function initDisplayConfig() {
+      document.getElementById('expire-hours-text').textContent = DISPLAY_CONFIG.expireHours;
+      document.getElementById('allowed-types-text').textContent = DISPLAY_CONFIG.allowedTypesDisplay;
+      document.getElementById('max-size-text').textContent = DISPLAY_CONFIG.maxFileSizeMB;
+      document.getElementById('footer-expire-hours').textContent = DISPLAY_CONFIG.expireHours;
     }
 
     // 主题切换
@@ -248,7 +200,6 @@
         document.documentElement.classList.remove('dark');
         document.body.classList.add('bg-gray-50', 'text-gray-900');
         document.body.classList.remove('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
-        
         document.querySelectorAll('.glass').forEach(el => {
           el.classList.remove('glass');
           el.classList.add('glass-light');
@@ -262,7 +213,6 @@
         localStorage.theme = 'light';
         document.body.classList.add('bg-gray-50', 'text-gray-900');
         document.body.classList.remove('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
-        
         document.querySelectorAll('.glass').forEach(el => {
           el.classList.remove('glass');
           el.classList.add('glass-light');
@@ -272,7 +222,6 @@
         localStorage.theme = 'dark';
         document.body.classList.add('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
         document.body.classList.remove('bg-gray-50', 'text-gray-900');
-        
         document.querySelectorAll('.glass-light').forEach(el => {
           el.classList.remove('glass-light');
           el.classList.add('glass');
@@ -281,9 +230,9 @@
     });
 
     // 页面加载时初始化
-    document.addEventListener('DOMContentLoaded', async () => {
+    document.addEventListener('DOMContentLoaded', () => {
       initTheme();
-      await initPageConfig();
+      initDisplayConfig();
     });
 
     // 点击上传区域触发文件选择
@@ -330,19 +279,6 @@
 
     // 上传文件
     async function uploadFile(file) {
-      // 检查文件类型
-      if (!CONFIG.allowedTypes.includes(file.type)) {
-        showToast(`不支持的文件类型，仅支持：${CONFIG.allowedTypesDisplay}`);
-        return;
-      }
-
-      // 检查文件大小
-      if (file.size > CONFIG.maxFileSize) {
-        showToast(`文件大小超过${CONFIG.maxFileSizeMB}MB限制`);
-        return;
-      }
-
-      // 显示上传进度
       uploadArea.classList.add('hidden');
       uploadProgress.classList.remove('hidden');
       progressBar.style.width = '0%';

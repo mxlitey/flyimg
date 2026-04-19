@@ -40,7 +40,14 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
       - name: Generate config.js
-        run: echo "const API_BASE = 'https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev';" > frontend/config.js
+        run: |
+          echo "// 部署时此文件由 GitHub Actions 自动生成" > frontend/config.js
+          echo "const API_BASE = 'https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev';" >> frontend/config.js
+          echo "const DISPLAY_CONFIG = {" >> frontend/config.js
+          echo "  expireHours: 12," >> frontend/config.js
+          echo "  maxFileSizeMB: 20," >> frontend/config.js
+          echo "  allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG'," >> frontend/config.js
+          echo "};" >> frontend/config.js
 
       - name: Create Pages Project (if not exists)
         run: |

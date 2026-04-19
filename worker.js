@@ -6,22 +6,14 @@ export default {
     // 从环境变量获取所有配置
     const CONFIG = {
       R2_BUCKET: env.R2_BUCKET,
-      R2_PUBLIC_DOMAIN: env.R2_PUBLIC_DOMAIN, // R2公有域名
+      R2_PUBLIC_DOMAIN: env.R2_PUBLIC_DOMAIN,
       EXPIRE_HOURS: parseInt(env.EXPIRE_HOURS || '12'),
       MAX_FILE_SIZE: parseInt(env.MAX_FILE_SIZE || '20') * 1024 * 1024,
       MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000') * 1024 * 1024,
       ALLOWED_TYPES: (env.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml').split(','),
       CRON_SECRET: env.CRON_SECRET,
-      CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',') : null // 可选：限制允许的来源
+      CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',') : null
     };
-
-    // 将文件大小转换为MB用于前端显示
-    CONFIG.MAX_FILE_SIZE_MB = CONFIG.MAX_FILE_SIZE / 1024 / 1024;
-    // 将允许的类型转换为友好的显示格式
-    CONFIG.ALLOWED_TYPES_DISPLAY = CONFIG.ALLOWED_TYPES.map(type => {
-      const ext = type.split('/')[1].toUpperCase();
-      return ext === 'SVG+XML' ? 'SVG' : ext;
-    }).join('、');
 
     // CORS处理（支持跨域）
     if (request.method === 'OPTIONS') {
@@ -72,21 +64,6 @@ export default {
       const headers = { ...getResponseHeaders(), ...extraHeaders };
       return new Response(JSON.stringify(data), { status, headers });
     };
-    
-    // 获取公共配置接口
-    if (request.method === 'GET' && url.pathname === '/config') {
-      return jsonResponse({
-        success: true,
-        expireHours: CONFIG.EXPIRE_HOURS,
-        maxFileSize: CONFIG.MAX_FILE_SIZE,
-        maxFileSizeMB: CONFIG.MAX_FILE_SIZE_MB,
-        allowedTypes: CONFIG.ALLOWED_TYPES,
-        allowedTypesDisplay: CONFIG.ALLOWED_TYPES_DISPLAY,
-        maxStorageSize: CONFIG.MAX_STORAGE_SIZE
-      }, 200, {
-        'Cache-Control': 'public, max-age=3600'
-      });
-    }
     
     // 上传图片
     if (request.method === 'POST' && url.pathname === '/upload') {
