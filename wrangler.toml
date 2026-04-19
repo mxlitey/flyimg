@@ -11,3 +11,6 @@ bucket_name = "flyimg"
 # 定时触发器（每小时执行一次清理）
 [triggers]
 crons = ["0 */1 * * *"]
+
+# Pages 构建输出目录
+pages_build_output_dir = "frontend"
