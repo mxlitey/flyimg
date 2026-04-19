@@ -41,7 +41,7 @@ jobs:
 
       - name: Replace API_BASE in frontend
         run: |
-          WORKER_URL="https://flyimg.${WORKER_SUBDOMAIN}.workers.dev"
+          WORKER_URL="https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev"
           sed -i "s|const API_BASE = 'https://your-worker-name.your-account.workers.dev';|const API_BASE = '${WORKER_URL}';|" frontend/index.html
 
       - name: Create Pages Project (if not exists)
