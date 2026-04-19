@@ -1,6 +1,4 @@
-<p align="center"><img src="frontend/favicon.png" width="64" alt="Flyimg Logo"></p>
-
-# Flyimg・瞬图
+# <p align="center"><img src="frontend/favicon.png" width="64" alt="Flyimg Logo"></p>Flyimg・瞬图
 
 **基于 Cloudflare Workers + R2 实现的极简临时图床**
 
