@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flyimg · 瞬图</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            dark: {
+              900: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+              600: '#475569'
+            }
+          },
+        },
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .glass {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .glass-light {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      .storage-card {
+        position: relative;
+        overflow: hidden;
+      }
+      .storage-fill {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+      }
+      .storage-content {
+        position: relative;
+        z-index: 1;
+      }
+      .content-auto {
+        content-visibility: auto;
+      }
+    }
+  </style>
+  <script>
+    // ======================
+    // 部署时修改这里为你的后端Worker地址
+    // ======================
+    const API_BASE = 'https://your-worker-name.your-account.workers.dev';
+    
+    // API基础URL验证
+    function validateApiBase() {
+      if (API_BASE.includes('your-worker-name') || API_BASE.includes('your-account')) {
+        return false;
+      }
+      try {
+        new URL(API_BASE);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen transition-colors duration-300 bg-gradient-to-b from-dark-900 to-dark-800 text-white dark">
+  <!-- 导航栏 -->
+  <nav class="sticky top-0 z-50 glass">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <a href="#" class="flex items-center">
+            <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center mr-3">
+              <i class="fa fa-cloud-upload text-white text-xl"></i>
+            </div>
+            <span class="text-xl font-bold">Flyimg · 瞬图</span>
+          </a>
+        </div>
+        <div class="flex items-center">
+          <button id="theme-toggle" class="p-2 rounded-lg hover:bg-white/10 transition-colors">
+            <i class="fa fa-sun-o text-xl dark:hidden"></i>
+            <i class="fa fa-moon-o text-xl hidden dark:inline"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 主要内容 -->
+  <main class="flex-grow max-w-4xl mx-auto px-4 py-8 w-full">
+    <!-- 标题区域 -->
+    <div class="text-center mb-12">
+      <h1 class="text-4xl md:text-5xl font-bold mb-4">瞬传 · 瞬用 · 瞬逝</h1>
+      <p class="text-xl text-gray-400 max-w-2xl mx-auto" id="subtitle">
+        无需登录 · <span id="expire-hours-text">12</span>小时自动永久删除 · Cloudflare全球CDN加速
+      </p>
+    </div>
+
+    <!-- 上传区域（第一优先级） -->
+    <div id="upload-area" class="glass rounded-2xl p-10 mb-8 border-2 border-dashed border-gray-600 hover:border-primary transition-all duration-300 cursor-pointer">
+      <div class="text-center">
+        <i class="fa fa-cloud-upload text-7xl text-gray-500 mb-6"></i>
+        <h2 class="text-2xl font-semibold mb-3">拖拽图片到这里上传</h2>
+        <p class="text-gray-400 mb-4">或者点击选择文件，也可以按 Ctrl+V 粘贴剪贴板中的图片</p>
+        <p class="text-sm text-gray-500" id="file-info">
+          支持 <span id="allowed-types-text">JPG、PNG、GIF、WebP、SVG</span> 格式，最大 <span id="max-size-text">20</span>MB
+        </p>
+        <input type="file" id="file-input" accept="image/*" class="hidden">
+      </div>
+    </div>
+
+    <!-- 存储已满提示 -->
+    <div id="storage-full-warning" class="hidden glass rounded-2xl p-6 mb-8 border-l-4 border-danger">
+      <div class="flex items-center">
+        <i class="fa fa-exclamation-triangle text-danger text-2xl mr-4"></i>
+        <div>
+          <h3 class="text-lg font-semibold text-danger">存储空间已满</h3>
+          <p class="text-gray-400">请等待过期图片自动清理后再试，系统每小时自动清理一次</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上传进度 -->
+    <div id="upload-progress" class="hidden glass rounded-2xl p-10 mb-8">
+      <div class="flex items-center justify-center mb-6">
+        <i class="fa fa-spinner fa-spin text-primary text-3xl mr-4"></i>
+        <span class="text-xl font-medium">正在上传...</span>
+      </div>
+      <div class="w-full bg-gray-700 rounded-full h-3">
+        <div id="progress-bar" class="bg-primary h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- 上传结果 -->
+    <div id="upload-result" class="hidden glass rounded-2xl p-10 mb-8">
+      <div class="flex items-center justify-center mb-6">
+        <i class="fa fa-check-circle text-success text-3xl mr-4"></i>
+        <span class="text-xl font-medium">上传成功！</span>
+        <span id="expire-time" class="ml-auto text-sm text-gray-400 bg-primary/20 px-4 py-2 rounded-full"></span>
+      </div>
+      
+      <!-- 图片预览 -->
+      <div class="mb-8">
+        <img id="preview-image" src="" alt="预览" class="max-w-full h-auto rounded-lg mx-auto max-h-80 object-contain shadow-xl">
+      </div>
+      
+      <!-- 链接列表 -->
+      <div class="space-y-4 text-left">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">直链</label>
+          <div class="flex">
+            <input type="text" id="direct-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+            <button onclick="copyLink('direct-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">
+              复制
+            </button>
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Markdown</label>
+          <div class="flex">
+            <input type="text" id="markdown-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+            <button onclick="copyLink('markdown-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">
+              复制
+            </button>
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">HTML</label>
+          <div class="flex">
+            <input type="text" id="html-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+            <button onclick="copyLink('html-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">
+              复制
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <button onclick="resetUpload()" class="mt-8 w-full bg-gray-700 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium">
+        <i class="fa fa-upload mr-2"></i>继续上传
+      </button>
+    </div>
+
+    <!-- 统计卡片（排版100%统一） -->
+    <div class="grid grid-cols-2 gap-6 mb-12">
+      <div class="glass rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105">
+        <div class="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fa fa-picture-o text-primary text-2xl"></i>
+        </div>
+        <div class="text-4xl md:text-5xl font-bold mb-2" id="total-files">--</div>
+        <div class="text-gray-400 text-lg">Images<br>hosted</div>
+      </div>
+      
+      <!-- Data storage卡片 - 排版与左侧完全一致 -->
+      <div class="storage-card glass rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105">
+        <!-- 填充层 -->
+        <div class="storage-fill bg-success/20" id="storage-fill" style="height: 0%"></div>
+        
+        <!-- 内容层（与左侧完全一致的排版） -->
+        <div class="storage-content">
+          <div class="w-12 h-12 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fa fa-database text-success text-2xl"></i>
+          </div>
+          <div class="text-4xl md:text-5xl font-bold mb-2" id="total-size">--</div>
+          <div class="text-gray-400 text-lg">Data<br>storage</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 底部 -->
+  <footer class="glass py-6 mt-12">
+    <div class="max-w-4xl mx-auto px-4 text-center text-gray-400">
+      <p>Flyimg · 瞬图 — 基于 Cloudflare R2 构建</p>
+      <p>图片 <span id="footer-expire-hours">12</span> 小时后自动永久删除</p>
+    </div>
+  </footer>
+
+  <!-- 提示框 -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-dark-700 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    复制成功！
+  </div>
+
+  <script>
+    // 全局配置
+    let CONFIG = {};
+    
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const uploadProgress = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('progress-bar');
+    const uploadResult = document.getElementById('upload-result');
+    const previewImage = document.getElementById('preview-image');
+    const directLink = document.getElementById('direct-link');
+    const markdownLink = document.getElementById('markdown-link');
+    const htmlLink = document.getElementById('html-link');
+    const expireTime = document.getElementById('expire-time');
+    const toast = document.getElementById('toast');
+    const totalFilesEl = document.getElementById('total-files');
+    const totalSizeEl = document.getElementById('total-size');
+    const storageFill = document.getElementById('storage-fill');
+    const storageFullWarning = document.getElementById('storage-full-warning');
+    const themeToggle = document.getElementById('theme-toggle');
+    const expireHoursText = document.getElementById('expire-hours-text');
+    const allowedTypesText = document.getElementById('allowed-types-text');
+    const maxSizeText = document.getElementById('max-size-text');
+    const footerExpireHours = document.getElementById('footer-expire-hours');
+
+    // 全局存储状态
+    let isStorageFull = false;
+
+    // 初始化页面配置
+    async function initPageConfig() {
+      if (!validateApiBase()) {
+        showToast('请配置正确的API_BASE地址，修改index.html中的API_BASE变量');
+        document.getElementById('subtitle').innerHTML = '⚠️ 请先配置后端Worker地址';
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/config`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        if (data.success) {
+          CONFIG = data;
+          
+          expireHoursText.textContent = CONFIG.expireHours;
+          allowedTypesText.textContent = CONFIG.allowedTypesDisplay;
+          maxSizeText.textContent = CONFIG.maxFileSizeMB;
+          footerExpireHours.textContent = CONFIG.expireHours;
+          
+          fileInput.accept = CONFIG.allowedTypes.join(',');
+        }
+      } catch (error) {
+        console.error('加载配置失败:', error);
+        showToast('无法连接到后端，请检查API_BASE配置');
+        document.getElementById('subtitle').innerHTML = '⚠️ 后端连接失败，请检查配置';
+      }
+    }
+
+    // 主题切换
+    function initTheme() {
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
+        document.body.classList.remove('bg-gray-50', 'text-gray-900');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.add('bg-gray-50', 'text-gray-900');
+        document.body.classList.remove('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
+        
+        // 切换所有玻璃态元素
+        document.querySelectorAll('.glass').forEach(el => {
+          el.classList.remove('glass');
+          el.classList.add('glass-light');
+        });
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      if (document.documentElement.classList.contains('dark')) {
+        document.documentElement.classList.remove('dark');
+        localStorage.theme = 'light';
+        document.body.classList.add('bg-gray-50', 'text-gray-900');
+        document.body.classList.remove('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
+        
+        document.querySelectorAll('.glass').forEach(el => {
+          el.classList.remove('glass');
+          el.classList.add('glass-light');
+        });
+      } else {
+        document.documentElement.classList.add('dark');
+        localStorage.theme = 'dark';
+        document.body.classList.add('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
+        document.body.classList.remove('bg-gray-50', 'text-gray-900');
+        
+        document.querySelectorAll('.glass-light').forEach(el => {
+          el.classList.remove('glass-light');
+          el.classList.add('glass');
+        });
+      }
+    });
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+      initTheme();
+      await initPageConfig();
+      if (validateApiBase()) {
+        loadStats();
+        setInterval(loadStats, 10 * 60 * 1000);
+      }
+    });
+
+    // 加载存储统计
+    async function loadStats() {
+      try {
+        const response = await fetch(`${API_BASE}/stats`);
+        const data = await response.json();
+        
+        if (data.success) {
+          totalFilesEl.textContent = data.totalFiles;
+          totalSizeEl.textContent = data.formattedSize;
+          
+          // 更新卡片填充高度
+          const fillHeight = Math.min(data.usagePercent, 100);
+          storageFill.style.height = `${fillHeight}%`;
+          
+          // 根据使用比例改变填充颜色和透明度
+          storageFill.classList.remove('bg-success/20', 'bg-warning/25', 'bg-danger/30');
+          if (data.usagePercent >= 90) {
+            storageFill.classList.add('bg-danger/30');
+          } else if (data.usagePercent >= 70) {
+            storageFill.classList.add('bg-warning/25');
+          } else {
+            storageFill.classList.add('bg-success/20');
+          }
+          
+          // 更新存储状态
+          isStorageFull = data.isFull;
+          updateUploadAreaState();
+        }
+      } catch (error) {
+        console.error('加载统计失败:', error);
+      }
+    }
+
+    // 更新上传区域状态
+    function updateUploadAreaState() {
+      if (isStorageFull) {
+        // 存储已满，禁用上传
+        uploadArea.classList.add('opacity-50', 'cursor-not-allowed');
+        uploadArea.classList.remove('hover:border-primary');
+        storageFullWarning.classList.remove('hidden');
+      } else {
+        // 存储可用，启用上传
+        uploadArea.classList.remove('opacity-50', 'cursor-not-allowed');
+        uploadArea.classList.add('hover:border-primary');
+        storageFullWarning.classList.add('hidden');
+      }
+    }
+
+    // 点击上传区域触发文件选择
+    uploadArea.addEventListener('click', () => {
+      if (isStorageFull) {
+        showToast('存储空间已满，请等待自动清理');
+        return;
+      }
+      fileInput.click();
+    });
+
+    // 文件选择变化
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0 && !isStorageFull) {
+        uploadFile(e.target.files[0]);
+      }
+    });
+
+    // 拖拽上传
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (isStorageFull) return;
+      
+      if (document.documentElement.classList.contains('dark')) {
+        uploadArea.classList.add('border-primary', 'bg-primary/10');
+      } else {
+        uploadArea.classList.add('border-primary', 'bg-primary/5');
+      }
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('border-primary', 'bg-primary/10', 'bg-primary/5');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('border-primary', 'bg-primary/10', 'bg-primary/5');
+      
+      if (e.dataTransfer.files.length > 0 && !isStorageFull) {
+        uploadFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // 剪贴板粘贴上传
+    document.addEventListener('paste', (e) => {
+      if (e.clipboardData.files.length > 0 && !isStorageFull) {
+        uploadFile(e.clipboardData.files[0]);
+      }
+    });
+
+    // 上传文件
+    async function uploadFile(file) {
+      // 再次检查存储状态
+      if (isStorageFull) {
+        showToast('存储空间已满，请等待自动清理');
+        return;
+      }
+
+      // 检查文件类型
+      if (!CONFIG.allowedTypes.includes(file.type)) {
+        showToast(`不支持的文件类型，仅支持：${CONFIG.allowedTypesDisplay}`);
+        return;
+      }
+
+      // 检查文件大小
+      if (file.size > CONFIG.maxFileSize) {
+        showToast(`文件大小超过${CONFIG.maxFileSizeMB}MB限制`);
+        return;
+      }
+
+      // 显示上传进度
+      uploadArea.classList.add('hidden');
+      uploadProgress.classList.remove('hidden');
+      progressBar.style.width = '0%';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+        
+        // 上传进度
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = (e.loaded / e.total) * 100;
+            progressBar.style.width = `${percent}%`;
+          }
+        });
+
+        // 上传完成
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            const result = JSON.parse(xhr.responseText);
+            
+            // 显示结果
+            uploadProgress.classList.add('hidden');
+            uploadResult.classList.remove('hidden');
+            
+            previewImage.src = result.url;
+            directLink.value = result.url;
+            markdownLink.value = result.markdown;
+            htmlLink.value = result.html;
+            
+            // 计算剩余时间
+            const expireDate = new Date(result.expireAt);
+            const hoursLeft = Math.round((expireDate - Date.now()) / (1000 * 60 * 60));
+            expireTime.textContent = `${hoursLeft}小时后过期`;
+            
+            // 上传成功后刷新统计
+            loadStats();
+            
+            showToast('上传成功！');
+          } else {
+            const error = JSON.parse(xhr.responseText);
+            
+            if (error.storageFull) {
+              isStorageFull = true;
+              updateUploadAreaState();
+            }
+            
+            showToast(error.error || '上传失败');
+            resetUpload();
+          }
+        });
+
+        // 上传错误
+        xhr.addEventListener('error', () => {
+          showToast('上传失败，请检查网络连接');
+          resetUpload();
+        });
+
+        xhr.open('POST', `${API_BASE}/upload`);
+        xhr.send(formData);
+
+      } catch (error) {
+        console.error('上传失败:', error);
+        showToast('上传失败');
+        resetUpload();
+      }
+    }
+
+    // 复制链接
+    async function copyLink(inputId) {
+      const input = document.getElementById(inputId);
+      const text = input.value;
+      
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('复制成功！');
+      } catch (err) {
+        // 降级方案：使用旧的execCommand方法
+        input.select();
+        input.setSelectionRange(0, 99999); // 移动端兼容
+        document.execCommand('copy');
+        showToast('复制成功！');
+      }
+    }
+
+    // 重置上传
+    function resetUpload() {
+      uploadProgress.classList.add('hidden');
+      uploadResult.classList.add('hidden');
+      uploadArea.classList.remove('hidden');
+      fileInput.value = '';
+    }
+
+    // 显示提示框
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
