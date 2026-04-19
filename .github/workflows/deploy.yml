@@ -8,7 +8,7 @@ on:
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-  WORKER_URL: ${{ secrets.WORKER_URL }}
+  WORKER_SUBDOMAIN: ${{ secrets.WORKER_SUBDOMAIN }}
 
 jobs:
   deploy:
@@ -40,7 +40,7 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
       - name: Generate config.js
-        run: echo "const API_BASE = '${WORKER_URL}';" > frontend/config.js
+        run: echo "const API_BASE = 'https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev';" > frontend/config.js
 
       - name: Create Pages Project (if not exists)
         run: |
