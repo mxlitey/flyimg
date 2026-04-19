@@ -58,24 +58,22 @@ npm install -g wrangler
 # 登录 Cloudflare
 wrangler login
 
-# 复制环境变量文件
-cp .env.example .dev.vars
-# 编辑 .dev.vars，填入你的 R2 存储桶名称和公网域名
+# 创建 R2 存储桶（如已存在会忽略）
+wrangler r2 bucket create flyimg
 
-# 部署
-wrangler deploy
+# 部署 Worker
+wrangler deploy --var R2_PUBLIC_DOMAIN:https://pub-xxxx.r2.dev
 
 # 设置敏感变量（加密存储）
 wrangler secret put CRON_SECRET
 ```
 
-> `wrangler.toml` 使用 `${VAR}` 语法引用环境变量，变量通过 `.dev.vars`（本地开发）或 Cloudflare Dashboard 设置。
-
 #### 方式二：Cloudflare Dashboard 直接部署（无需 Fork）
 
-1. 点击下方的「Deploy to Workers」按钮
-2. 登录 Cloudflare 账号，授权后自动部署
-3. 部署完成后进入 Worker 设置页面
+1. 创建 R2 存储桶，名称为 `flyimg`，开启公共访问
+2. 点击下方的「Deploy to Workers」按钮
+3. 登录 Cloudflare 账号，授权后自动部署
+4. 部署完成后进入 Worker 设置页面
 
 [![Deploy to Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mxlitey/flyimg)
 
@@ -89,13 +87,13 @@ wrangler secret put CRON_SECRET
 
 **1. R2 存储桶绑定**
 
-绑定名称：`R2_BUCKET` → 选择你的 R2 存储桶
+绑定名称：`R2_BUCKET` → 选择名称为 `flyimg` 的 R2 存储桶
 
 **2. 环境变量（必需）**
 
 | 变量名 | 说明 | 示例 |
 |--------|------|------|
-| `R2_PUBLIC_DOMAIN` | R2 公网访问域名（加密） | `https://pub-xxxx.r2.dev` |
+| `R2_PUBLIC_DOMAIN` | R2 公网访问域名 | `https://pub-xxxx.r2.dev` |
 | `CRON_SECRET` | 清理接口密钥（加密） | `a1b2c3d4e5f6` |
 
 **3. 环境变量（可选，有默认值）**
@@ -204,7 +202,7 @@ flyimg/
 ├── frontend/              # 纯静态前端
 │   └── index.html         # 前端页面（部署时需修改 API_BASE）
 ├── worker.js              # Worker 后端 API
-├── wrangler.toml          # Wrangler 配置文件（使用 ${VAR} 环境变量语法）
+├── wrangler.toml          # Wrangler 配置文件（R2 桶固定为 "flyimg"）
 ├── .env.example           # 环境变量模板（复制为 .dev.vars 使用）
 ├── .gitignore
 ├── LICENSE

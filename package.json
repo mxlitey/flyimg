@@ -1,0 +1,10 @@
+{
+  "name": "flyimg",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup-r2": "wrangler r2 bucket create flyimg 2>nul || echo R2 storage bucket already exists",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  }
+}
