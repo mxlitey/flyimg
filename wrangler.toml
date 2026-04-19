@@ -4,20 +4,23 @@ compatibility_date = "2024-01-01"
 workers_dev = true
 
 # R2 存储桶绑定
-# 部署前请修改为你的实际 R2 存储桶名称
+# 部署时在 Cloudflare Dashboard 中绑定你的 R2 存储桶
 [[r2_buckets]]
 binding = "R2_BUCKET"
-bucket_name = "flyimg-bucket"
+bucket_name = ""
 
 # 定时触发器（每小时执行一次清理）
 [triggers]
 crons = ["0 */1 * * *"]
 
 # 环境变量
-# 非敏感变量可直接填写，敏感变量（如 CRON_SECRET）请通过 Cloudflare Dashboard 设置
-[vars]
-R2_PUBLIC_DOMAIN = "https://pub-xxxx.r2.dev"
-EXPIRE_HOURS = "12"
-MAX_FILE_SIZE = "20"
-MAX_STORAGE_SIZE = "1000"
-ALLOWED_TYPES = "image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+# 请在 Cloudflare Dashboard 的 Worker 变量中设置以下变量：
+# - R2_PUBLIC_DOMAIN: R2 公网访问域名
+# - CRON_SECRET: 清理接口密钥（随机字符串）
+#
+# 以下为可选配置，有默认值：
+# - EXPIRE_HOURS: 图片过期时间（小时），默认 12
+# - MAX_FILE_SIZE: 单文件大小限制（MB），默认 20
+# - MAX_STORAGE_SIZE: 总存储上限（MB），默认 1000
+# - ALLOWED_TYPES: 允许的 MIME 类型
+# - CORS_ALLOWED_ORIGINS: 允许的跨域来源
