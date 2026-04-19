@@ -12,5 +12,9 @@ bucket_name = "flyimg"
 [triggers]
 crons = ["0 */1 * * *"]
 
-# Pages 构建输出目录
-pages_build_output_dir = "frontend"
+# 环境变量（非敏感配置，有默认值）
+[vars]
+EXPIRE_HOURS = "12"
+MAX_FILE_SIZE = "20"
+MAX_STORAGE_SIZE = "1000"
+ALLOWED_TYPES = "image/jpeg,image/png,image/gif,image/webp,image/svg+xml"

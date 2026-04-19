@@ -41,22 +41,6 @@
         -webkit-backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 0, 0, 0.1);
       }
-      .storage-card {
-        position: relative;
-        overflow: hidden;
-      }
-      .storage-fill {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-        z-index: 0;
-      }
-      .storage-content {
-        position: relative;
-        z-index: 1;
-      }
       .content-auto {
         content-visibility: auto;
       }
@@ -124,17 +108,6 @@
       </div>
     </div>
 
-    <!-- 存储已满提示 -->
-    <div id="storage-full-warning" class="hidden glass rounded-2xl p-6 mb-8 border-l-4 border-danger">
-      <div class="flex items-center">
-        <i class="fa fa-exclamation-triangle text-danger text-2xl mr-4"></i>
-        <div>
-          <h3 class="text-lg font-semibold text-danger">存储空间已满</h3>
-          <p class="text-gray-400">请等待过期图片自动清理后再试，系统每小时自动清理一次</p>
-        </div>
-      </div>
-    </div>
-
     <!-- 上传进度 -->
     <div id="upload-progress" class="hidden glass rounded-2xl p-10 mb-8">
       <div class="flex items-center justify-center mb-6">
@@ -196,32 +169,6 @@
         <i class="fa fa-upload mr-2"></i>继续上传
       </button>
     </div>
-
-    <!-- 统计卡片（排版100%统一） -->
-    <div class="grid grid-cols-2 gap-6 mb-12">
-      <div class="glass rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105">
-        <div class="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <i class="fa fa-picture-o text-primary text-2xl"></i>
-        </div>
-        <div class="text-4xl md:text-5xl font-bold mb-2" id="total-files">--</div>
-        <div class="text-gray-400 text-lg">Images<br>hosted</div>
-      </div>
-      
-      <!-- Data storage卡片 - 排版与左侧完全一致 -->
-      <div class="storage-card glass rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105">
-        <!-- 填充层 -->
-        <div class="storage-fill bg-success/20" id="storage-fill" style="height: 0%"></div>
-        
-        <!-- 内容层（与左侧完全一致的排版） -->
-        <div class="storage-content">
-          <div class="w-12 h-12 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <i class="fa fa-database text-success text-2xl"></i>
-          </div>
-          <div class="text-4xl md:text-5xl font-bold mb-2" id="total-size">--</div>
-          <div class="text-gray-400 text-lg">Data<br>storage</div>
-        </div>
-      </div>
-    </div>
   </main>
 
   <!-- 底部 -->
@@ -252,18 +199,11 @@
     const htmlLink = document.getElementById('html-link');
     const expireTime = document.getElementById('expire-time');
     const toast = document.getElementById('toast');
-    const totalFilesEl = document.getElementById('total-files');
-    const totalSizeEl = document.getElementById('total-size');
-    const storageFill = document.getElementById('storage-fill');
-    const storageFullWarning = document.getElementById('storage-full-warning');
     const themeToggle = document.getElementById('theme-toggle');
     const expireHoursText = document.getElementById('expire-hours-text');
     const allowedTypesText = document.getElementById('allowed-types-text');
     const maxSizeText = document.getElementById('max-size-text');
     const footerExpireHours = document.getElementById('footer-expire-hours');
-
-    // 全局存储状态
-    let isStorageFull = false;
 
     // 初始化页面配置
     async function initPageConfig() {
@@ -308,7 +248,6 @@
         document.body.classList.add('bg-gray-50', 'text-gray-900');
         document.body.classList.remove('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
         
-        // 切换所有玻璃态元素
         document.querySelectorAll('.glass').forEach(el => {
           el.classList.remove('glass');
           el.classList.add('glass-light');
@@ -344,72 +283,16 @@
     document.addEventListener('DOMContentLoaded', async () => {
       initTheme();
       await initPageConfig();
-      if (validateApiBase()) {
-        loadStats();
-        setInterval(loadStats, 10 * 60 * 1000);
-      }
     });
-
-    // 加载存储统计
-    async function loadStats() {
-      try {
-        const response = await fetch(`${API_BASE}/stats`);
-        const data = await response.json();
-        
-        if (data.success) {
-          totalFilesEl.textContent = data.totalFiles;
-          totalSizeEl.textContent = data.formattedSize;
-          
-          // 更新卡片填充高度
-          const fillHeight = Math.min(data.usagePercent, 100);
-          storageFill.style.height = `${fillHeight}%`;
-          
-          // 根据使用比例改变填充颜色和透明度
-          storageFill.classList.remove('bg-success/20', 'bg-warning/25', 'bg-danger/30');
-          if (data.usagePercent >= 90) {
-            storageFill.classList.add('bg-danger/30');
-          } else if (data.usagePercent >= 70) {
-            storageFill.classList.add('bg-warning/25');
-          } else {
-            storageFill.classList.add('bg-success/20');
-          }
-          
-          // 更新存储状态
-          isStorageFull = data.isFull;
-          updateUploadAreaState();
-        }
-      } catch (error) {
-        console.error('加载统计失败:', error);
-      }
-    }
-
-    // 更新上传区域状态
-    function updateUploadAreaState() {
-      if (isStorageFull) {
-        // 存储已满，禁用上传
-        uploadArea.classList.add('opacity-50', 'cursor-not-allowed');
-        uploadArea.classList.remove('hover:border-primary');
-        storageFullWarning.classList.remove('hidden');
-      } else {
-        // 存储可用，启用上传
-        uploadArea.classList.remove('opacity-50', 'cursor-not-allowed');
-        uploadArea.classList.add('hover:border-primary');
-        storageFullWarning.classList.add('hidden');
-      }
-    }
 
     // 点击上传区域触发文件选择
     uploadArea.addEventListener('click', () => {
-      if (isStorageFull) {
-        showToast('存储空间已满，请等待自动清理');
-        return;
-      }
       fileInput.click();
     });
 
     // 文件选择变化
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0 && !isStorageFull) {
+      if (e.target.files.length > 0) {
         uploadFile(e.target.files[0]);
       }
     });
@@ -417,8 +300,6 @@
     // 拖拽上传
     uploadArea.addEventListener('dragover', (e) => {
       e.preventDefault();
-      if (isStorageFull) return;
-      
       if (document.documentElement.classList.contains('dark')) {
         uploadArea.classList.add('border-primary', 'bg-primary/10');
       } else {
@@ -434,26 +315,20 @@
       e.preventDefault();
       uploadArea.classList.remove('border-primary', 'bg-primary/10', 'bg-primary/5');
       
-      if (e.dataTransfer.files.length > 0 && !isStorageFull) {
+      if (e.dataTransfer.files.length > 0) {
         uploadFile(e.dataTransfer.files[0]);
       }
     });
 
     // 剪贴板粘贴上传
     document.addEventListener('paste', (e) => {
-      if (e.clipboardData.files.length > 0 && !isStorageFull) {
+      if (e.clipboardData.files.length > 0) {
         uploadFile(e.clipboardData.files[0]);
       }
     });
 
     // 上传文件
     async function uploadFile(file) {
-      // 再次检查存储状态
-      if (isStorageFull) {
-        showToast('存储空间已满，请等待自动清理');
-        return;
-      }
-
       // 检查文件类型
       if (!CONFIG.allowedTypes.includes(file.type)) {
         showToast(`不支持的文件类型，仅支持：${CONFIG.allowedTypesDisplay}`);
@@ -477,7 +352,6 @@
 
         const xhr = new XMLHttpRequest();
         
-        // 上传进度
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             const percent = (e.loaded / e.total) * 100;
@@ -485,12 +359,10 @@
           }
         });
 
-        // 上传完成
         xhr.addEventListener('load', () => {
           if (xhr.status === 200) {
             const result = JSON.parse(xhr.responseText);
             
-            // 显示结果
             uploadProgress.classList.add('hidden');
             uploadResult.classList.remove('hidden');
             
@@ -499,29 +371,18 @@
             markdownLink.value = result.markdown;
             htmlLink.value = result.html;
             
-            // 计算剩余时间
             const expireDate = new Date(result.expireAt);
             const hoursLeft = Math.round((expireDate - Date.now()) / (1000 * 60 * 60));
             expireTime.textContent = `${hoursLeft}小时后过期`;
             
-            // 上传成功后刷新统计
-            loadStats();
-            
             showToast('上传成功！');
           } else {
             const error = JSON.parse(xhr.responseText);
-            
-            if (error.storageFull) {
-              isStorageFull = true;
-              updateUploadAreaState();
-            }
-            
             showToast(error.error || '上传失败');
             resetUpload();
           }
         });
 
-        // 上传错误
         xhr.addEventListener('error', () => {
           showToast('上传失败，请检查网络连接');
           resetUpload();
@@ -546,9 +407,8 @@
         await navigator.clipboard.writeText(text);
         showToast('复制成功！');
       } catch (err) {
-        // 降级方案：使用旧的execCommand方法
         input.select();
-        input.setSelectionRange(0, 99999); // 移动端兼容
+        input.setSelectionRange(0, 99999);
         document.execCommand('copy');
         showToast('复制成功！');
       }

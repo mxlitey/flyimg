@@ -35,19 +35,9 @@ jobs:
           secrets: |
             R2_PUBLIC_DOMAIN
             CRON_SECRET
-            EXPIRE_HOURS
-            MAX_FILE_SIZE
-            MAX_STORAGE_SIZE
-            ALLOWED_TYPES
-            CORS_ALLOWED_ORIGINS
         env:
           R2_PUBLIC_DOMAIN: ${{ secrets.R2_PUBLIC_DOMAIN }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          EXPIRE_HOURS: ${{ secrets.EXPIRE_HOURS }}
-          MAX_FILE_SIZE: ${{ secrets.MAX_FILE_SIZE }}
-          MAX_STORAGE_SIZE: ${{ secrets.MAX_STORAGE_SIZE }}
-          ALLOWED_TYPES: ${{ secrets.ALLOWED_TYPES }}
-          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
 
       - name: Generate config.js
         run: echo "const API_BASE = 'https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev';" > frontend/config.js
