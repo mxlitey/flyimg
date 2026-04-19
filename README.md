@@ -96,8 +96,26 @@ Cloudflare Dashboard → 首页右侧栏查看你的子域名。
 | `EXPIRE_HOURS` | `12` | 图片过期时间（小时） |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
-| `ALLOWED_TYPES` | 常见图片 | 允许的 MIME 类型，逗号分隔 |
+| `ALLOWED_TYPES` | 常见图片 | 允许的 MIME 类型，逗号分隔（见下方参考表） |
 | `CORS_ALLOWED_ORIGINS` | 无限制 | 允许的跨域来源，逗号分隔 |
+
+**常见 MIME 类型参考：**
+
+| 文件类型 | 扩展名 | MIME 类型 |
+|---|---|---|
+| 图片 | `.jpg`, `.jpeg` | `image/jpeg` |
+| 图片 | `.png` | `image/png` |
+| 图片 | `.gif` | `image/gif` |
+| 图片 | `.webp` | `image/webp` |
+| 图片 | `.svg` | `image/svg+xml` |
+| 图片 | `.bmp` | `image/bmp` |
+| 图片 | `.ico` | `image/x-icon` |
+| 视频 | `.mp4` | `video/mp4` |
+| 视频 | `.webm` | `video/webm` |
+| 视频 | `.mov` | `video/quicktime` |
+| 视频 | `.avi` | `video/x-msvideo` |
+
+> 示例值：`image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm`
 
 #### 4. 触发部署
 
