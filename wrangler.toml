@@ -1,10 +1,9 @@
 name = "flyimg"
 main = "worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2025-02-01"
 workers_dev = true
 
-# R2 存储桶绑定（使用固定名称 "flyimg"，自动关联已存在的桶）
-# 如果桶不存在，部署前请先运行：wrangler r2 bucket create flyimg
+# R2 存储桶绑定（固定名称为 flyimg）
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "flyimg"
@@ -12,9 +11,3 @@ bucket_name = "flyimg"
 # 定时触发器（每小时执行一次清理）
 [triggers]
 crons = ["0 */1 * * *"]
-
-# 环境变量
-# R2_PUBLIC_DOMAIN 通过构建时的环境变量传入
-# CRON_SECRET 通过 wrangler secret put 或 Dashboard 设置
-[vars]
-R2_PUBLIC_DOMAIN = "${R2_PUBLIC_DOMAIN}"
