@@ -39,10 +39,9 @@ jobs:
           R2_PUBLIC_DOMAIN: ${{ secrets.R2_PUBLIC_DOMAIN }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
-      - name: Replace API_BASE in frontend
+      - name: Generate config.js
         run: |
-          WORKER_URL="https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev"
-          sed -i "s|const API_BASE = 'https://your-worker-name.your-account.workers.dev';|const API_BASE = '${WORKER_URL}';|" frontend/index.html
+          echo "const API_BASE = 'https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev';" > frontend/config.js
 
       - name: Create Pages Project (if not exists)
         run: |
