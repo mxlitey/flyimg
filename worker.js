@@ -144,8 +144,9 @@ export default {
           }
         });
         
-        // 生成R2公网直链
-        const imageUrl = `${CONFIG.R2_PUBLIC_DOMAIN}/${fileName}`;
+        // 生成R2公网直链（强制使用https）
+        const domain = CONFIG.R2_PUBLIC_DOMAIN.replace(/^http:\/\//i, 'https://');
+        const imageUrl = `${domain}/${fileName}`;
         
         return jsonResponse({
           success: true,
