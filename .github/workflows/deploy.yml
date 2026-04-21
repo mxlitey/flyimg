@@ -122,37 +122,85 @@ jobs:
 
       - name: 🔑 Set Worker Secrets
         run: |
-          BODY1=$(jq -n --arg name "R2_PUBLIC_DOMAIN" --arg text "${{ secrets.R2_PUBLIC_DOMAIN }}" '{name: $name, text: $text, type: "secret_text"}')
-          curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$BODY1" || echo "⚠️ R2_PUBLIC_DOMAIN secret may already be set"
+          set_secret() {
+            local name="$1"
+            local value="$2"
+            if [ -n "$value" ]; then
+              BODY=$(jq -n --arg name "$name" --arg text "$value" '{name: $name, text: $text, type: "secret_text"}')
+              curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "$BODY" && echo "  ✅ $name set" || echo "  ⚠️ $name failed"
+            fi
+          }
 
-          BODY2=$(jq -n --arg name "CRON_SECRET" --arg text "${{ secrets.CRON_SECRET }}" '{name: $name, text: $text, type: "secret_text"}')
-          curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$BODY2" || echo "⚠️ CRON_SECRET secret may already be set"
+          set_secret "R2_PUBLIC_DOMAIN" "${{ secrets.R2_PUBLIC_DOMAIN }}"
+          set_secret "CRON_SECRET" "${{ secrets.CRON_SECRET }}"
+          set_secret "EXPIRE_HOURS" "${{ secrets.EXPIRE_HOURS }}"
+          set_secret "MAX_FILE_SIZE" "${{ secrets.MAX_FILE_SIZE }}"
+          set_secret "MAX_STORAGE_SIZE" "${{ secrets.MAX_STORAGE_SIZE }}"
+          set_secret "ALLOWED_TYPES" "${{ secrets.ALLOWED_TYPES }}"
+          set_secret "CORS_ALLOWED_ORIGINS" "${{ secrets.CORS_ALLOWED_ORIGINS }}"
 
           echo "✅ Worker secrets configured"
 
+      - name: 🌐 Configure Worker Custom Domain
+        if: ${{ secrets.WORKER_CUSTOM_DOMAIN != '' }}
+        run: |
+          CUSTOM_DOMAIN="${{ secrets.WORKER_CUSTOM_DOMAIN }}"
+          echo "Configuring custom domain: $CUSTOM_DOMAIN"
+
+          DOMAINS=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result[] | select(.hostname=="'"$CUSTOM_DOMAIN"'") | .id' || true)
+
+          if [ -n "$DOMAINS" ]; then
+            echo "✅ Custom domain already configured"
+          else
+            ZONE_ID=$(curl -sf "https://api.cloudflare.com/client/v4/zones?name=$(echo $CUSTOM_DOMAIN | sed 's/.*\.//')&status=active" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result[0].id' || true)
+
+            if [ -z "$ZONE_ID" ]; then
+              echo "⚠️ Could not find zone for $CUSTOM_DOMAIN, skipping custom domain setup"
+            else
+              curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data "{\"hostname\":\"$CUSTOM_DOMAIN\",\"zone_id\":\"$ZONE_ID\",\"service\":\"flyimg-worker\",\"environment\":\"production\"}" && \
+                echo "✅ Custom domain $CUSTOM_DOMAIN configured" || \
+                echo "⚠️ Custom domain configuration failed (may need DNS setup)"
+            fi
+          fi
+
       - name: 📝 Generate Frontend Config
         run: |
-          WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
-          if [ -z "$WORKER_URL" ]; then
-            echo "::error::Worker URL not detected, cannot generate frontend config"
-            exit 1
+          CUSTOM_DOMAIN="${{ secrets.WORKER_CUSTOM_DOMAIN }}"
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            API_URL="https://${CUSTOM_DOMAIN}"
+            echo "✅ Using custom domain for API: $API_URL"
+          else
+            API_URL="${{ steps.deploy-worker.outputs.worker_url }}"
+            if [ -z "$API_URL" ]; then
+              echo "::error::Worker URL not detected, cannot generate frontend config"
+              exit 1
+            fi
+            API_URL="${API_URL%/}"
+            echo "✅ Using workers.dev URL for API: $API_URL"
           fi
-          WORKER_URL="${WORKER_URL%/}"
+
+          EXPIRE_HOURS="${{ secrets.EXPIRE_HOURS }}"
+          MAX_FILE_SIZE="${{ secrets.MAX_FILE_SIZE }}"
+          EXPIRE_HOURS_VAL="${EXPIRE_HOURS:-12}"
+          MAX_FILE_SIZE_VAL="${MAX_FILE_SIZE:-20}"
+
           cat > frontend/config.js << CONFIGEOF
-          const API_BASE = '${WORKER_URL}';
+          const API_BASE = '${API_URL}';
           const DISPLAY_CONFIG = {
-            expireHours: 12,
-            maxFileSizeMB: 20,
+            expireHours: ${EXPIRE_HOURS_VAL},
+            maxFileSizeMB: ${MAX_FILE_SIZE_VAL},
             allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG',
           };
           CONFIGEOF
-          echo "✅ Frontend config generated with Worker URL: $WORKER_URL"
+          echo "✅ Frontend config generated"
 
       - name: 🌐 Setup Pages Project
         run: |
@@ -192,10 +240,14 @@ jobs:
 
             WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
             PAGES_URL="${{ steps.deploy-pages.outputs.pages_url }}"
+            CUSTOM_DOMAIN="${{ secrets.WORKER_CUSTOM_DOMAIN }}"
 
             echo "### 🔗 Access URLs" >> $GITHUB_STEP_SUMMARY
             echo "- **Frontend**: \`${PAGES_URL:-https://flyimg.pages.dev}\`" >> $GITHUB_STEP_SUMMARY
             echo "- **Worker API**: \`${WORKER_URL:-N/A}\`" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$CUSTOM_DOMAIN" ]; then
+              echo "- **Custom Domain**: \`https://${CUSTOM_DOMAIN}\`" >> $GITHUB_STEP_SUMMARY
+            fi
             echo "- **Admin Panel**: \`${PAGES_URL:-https://flyimg.pages.dev}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 

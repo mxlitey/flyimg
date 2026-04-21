@@ -74,7 +74,7 @@
             <i class="fa fa-cloud-upload mr-1"></i>上传
           </button>
           <button id="nav-my" onclick="navigateTo('my-images')" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm hidden">
-            <i class="fa fa-image mr-1"></i>我的图片
+            <i class="fa fa-file-image-o mr-1"></i>我的文件
           </button>
           <button id="nav-admin" onclick="navigateTo('admin')" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm hidden">
             <i class="fa fa-shield mr-1"></i>管理
@@ -169,7 +169,7 @@
 
     <div id="page-my-images" class="hidden">
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold mb-2">我的图片</h1>
+        <h1 class="text-3xl font-bold mb-2">我的文件</h1>
         <p class="text-gray-400">用户名：<span id="my-tag-display" class="text-primary font-mono"></span></p>
       </div>
       <div id="my-images-loading" class="text-center py-12 hidden">
@@ -177,8 +177,8 @@
         <p class="text-gray-400">加载中...</p>
       </div>
       <div id="my-images-empty" class="text-center py-12 hidden">
-        <i class="fa fa-image text-6xl text-gray-600 mb-4"></i>
-        <p class="text-gray-400 text-lg">暂无图片</p>
+        <i class="fa fa-file-image-o text-6xl text-gray-600 mb-4"></i>
+        <p class="text-gray-400 text-lg">暂无文件</p>
         <button onclick="navigateTo('upload')" class="mt-4 bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">去上传</button>
       </div>
       <div id="my-images-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -414,34 +414,16 @@
 
     async function computeMD5(file) {
       return new Promise((resolve, reject) => {
-        const chunkSize = 2 * 1024 * 1024;
-        const chunks = Math.ceil(file.size / chunkSize);
-        let currentChunk = 0;
-        const spark = new SparkMD5.ArrayBuffer();
         const reader = new FileReader();
-
         reader.onload = function(e) {
+          const spark = new SparkMD5.ArrayBuffer();
           spark.append(e.target.result);
-          currentChunk++;
-
-          if (currentChunk < chunks) {
-            loadNext();
-          } else {
-            resolve(spark.end());
-          }
+          resolve(spark.end());
         };
-
         reader.onerror = function() {
           reject(new Error('文件读取失败'));
         };
-
-        function loadNext() {
-          const start = currentChunk * chunkSize;
-          const end = Math.min(start + chunkSize, file.size);
-          reader.readAsArrayBuffer(file.slice(start, end));
-        }
-
-        loadNext();
+        reader.readAsArrayBuffer(file);
       });
     }
 
@@ -598,9 +580,13 @@
       }
     }
 
+    function getCardClass() {
+      return document.documentElement.classList.contains('dark') ? 'glass' : 'glass-light';
+    }
+
     function createImageCard(img, isAdmin) {
       const card = document.createElement('div');
-      card.className = `glass rounded-xl overflow-hidden ${img.expired ? 'border-2 border-danger' : ''}`;
+      card.className = `${getCardClass()} rounded-xl overflow-hidden ${img.expired ? 'border-2 border-danger' : ''}`;
 
       const expireDate = new Date(img.expire_at);
       const createdDate = new Date(img.created_at);
@@ -693,7 +679,7 @@
             else activeCount++;
 
             const row = document.createElement('div');
-            row.className = `glass rounded-xl p-4 flex items-center space-x-4 ${img.expired ? 'border-l-4 border-danger' : 'border-l-4 border-success'}`;
+            row.className = `${getCardClass()} rounded-xl p-4 flex items-center space-x-4 ${img.expired ? 'border-l-4 border-danger' : 'border-l-4 border-success'}`;
 
             const expireDate = new Date(img.expire_at);
             const createdDate = new Date(img.created_at);

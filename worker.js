@@ -8,7 +8,8 @@ export default {
       MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000') * 1024 * 1024,
       ALLOWED_TYPES: (env.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml').split(','),
       CRON_SECRET: env.CRON_SECRET,
-      CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',') : null
+      CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',') : null,
+      CACHE_MAX_AGE: parseInt(env.EXPIRE_HOURS || '12') * 3600
     };
 
     if (request.method === 'OPTIONS') {
@@ -62,7 +63,7 @@ export default {
         const storageInfo = await getStorageInfo(env.DB);
         if (storageInfo.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
           return jsonResponse({
-            error: '存储空间已满，请等待过期图片自动清理后再试',
+            error: '存储空间已满，请等待过期文件自动清理后再试',
             storageFull: true
           }, 429);
         }
@@ -95,19 +96,43 @@ export default {
         const fileName = md5Hash ? `${md5Hash}.${ext}` : `${timestamp}-${randomStr}.${ext}`;
 
         if (md5Hash) {
-          const existing = await env.DB.prepare(
-            'SELECT url, expire_at FROM images WHERE filename = ? LIMIT 1'
-          ).bind(fileName).first();
+          const existingRecords = await env.DB.prepare(
+            'SELECT url, expire_at, user_tag FROM images WHERE filename = ?'
+          ).bind(fileName).all();
 
-          if (existing) {
+          if (existingRecords.results && existingRecords.results.length > 0) {
+            const existing = existingRecords.results[0];
             const expireAt = new Date(existing.expire_at).getTime();
+
+            const userAlreadyLinked = existingRecords.results.some(r => r.user_tag === userTag);
+
             if (Date.now() < expireAt) {
+              const newExpireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
+              const newExpireAtISO = new Date(newExpireAt).toISOString();
+
+              await env.DB.prepare(
+                'UPDATE images SET expire_at = ? WHERE filename = ?'
+              ).bind(newExpireAtISO, fileName).run();
+
+              if (!userAlreadyLinked) {
+                await env.DB.prepare(
+                  'INSERT INTO images (filename, url, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+                ).bind(
+                  fileName,
+                  existing.url,
+                  0,
+                  userTag,
+                  newExpireAtISO,
+                  new Date(timestamp).toISOString()
+                ).run();
+              }
+
               return jsonResponse({
                 success: true,
                 url: existing.url,
                 markdown: `![图片](${existing.url})`,
                 html: `<img src="${existing.url}" alt="flyimg">`,
-                expireAt: new Date(expireAt).toISOString(),
+                expireAt: newExpireAtISO,
                 expireHours: CONFIG.EXPIRE_HOURS,
                 cached: true
               });
@@ -119,11 +144,12 @@ export default {
 
         const expireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
         const expireAtISO = new Date(expireAt).toISOString();
+        const cacheControl = `public, max-age=${CONFIG.CACHE_MAX_AGE}`;
 
         await env.R2_BUCKET.put(fileName, file.stream(), {
           httpMetadata: {
             contentType: file.type,
-            cacheControl: 'public, max-age=43200'
+            cacheControl: cacheControl
           },
           customMetadata: {
             expireAt: expireAt.toString()
@@ -222,7 +248,14 @@ export default {
           return jsonResponse({ error: '缺少filename参数' }, 400);
         }
 
-        await env.R2_BUCKET.delete(filename);
+        const remaining = await env.DB.prepare(
+          'SELECT filename FROM images WHERE filename = ?'
+        ).bind(filename).all();
+
+        if (remaining.results.length <= 1) {
+          await env.R2_BUCKET.delete(filename);
+        }
+
         await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(filename).run();
 
         return jsonResponse({
@@ -305,7 +338,7 @@ function getFileExtension(mimeType) {
 async function cleanupExpiredFiles(env) {
   const now = new Date().toISOString();
   const { results } = await env.DB.prepare(
-    'SELECT filename FROM images WHERE expire_at <= ?'
+    'SELECT DISTINCT filename FROM images WHERE expire_at <= ?'
   ).bind(now).all();
 
   if (results.length === 0) return 0;
