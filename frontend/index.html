@@ -42,6 +42,19 @@
         -webkit-backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 0, 0, 0.1);
       }
+      .theme-input {
+        transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+      }
+      .dark .theme-input {
+        background-color: #334155;
+        border-color: #475569;
+        color: #ffffff;
+      }
+      .theme-input:not(.dark *) {
+        background-color: #f9fafb;
+        border-color: #d1d5db;
+        color: #111827;
+      }
     }
   </style>
   <script src="config.js"></script>
@@ -53,7 +66,7 @@
         <div class="flex items-center">
           <a href="/" class="flex items-center">
             <img src="favicon.png" alt="Logo" class="w-10 h-10 mr-3">
-            <span class="text-xl font-bold">Flyimg · 瞬传・瞬用</span>
+            <span class="text-xl font-bold">Flyimg</span>
           </a>
         </div>
         <div class="flex items-center space-x-2">
@@ -85,9 +98,9 @@
       </div>
 
       <div class="mb-6 flex items-center justify-center space-x-4">
-        <label class="text-sm text-gray-400">标识Tag：</label>
-        <input type="text" id="user-tag-input" placeholder="输入你的标识（用于查看已传图片）"
-          class="px-4 py-2 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white text-sm w-72">
+        <label class="text-sm text-gray-400">用户名：</label>
+        <input type="text" id="user-tag-input" placeholder="输入用户名（用于查看已传图片）"
+          class="theme-input px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm w-72">
       </div>
 
       <div id="upload-area" class="glass rounded-2xl p-10 mb-8 border-2 border-dashed border-gray-600 hover:border-primary transition-all duration-300 cursor-pointer">
@@ -128,21 +141,21 @@
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-2">直链</label>
             <div class="flex">
-              <input type="text" id="direct-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+              <input type="text" id="direct-link" class="theme-input flex-grow px-4 py-3 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" readonly>
               <button onclick="copyLink('direct-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
             </div>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-2">Markdown</label>
             <div class="flex">
-              <input type="text" id="markdown-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+              <input type="text" id="markdown-link" class="theme-input flex-grow px-4 py-3 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" readonly>
               <button onclick="copyLink('markdown-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
             </div>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-2">HTML</label>
             <div class="flex">
-              <input type="text" id="html-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+              <input type="text" id="html-link" class="theme-input flex-grow px-4 py-3 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" readonly>
               <button onclick="copyLink('html-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
             </div>
           </div>
@@ -157,7 +170,7 @@
     <div id="page-my-images" class="hidden">
       <div class="text-center mb-8">
         <h1 class="text-3xl font-bold mb-2">我的图片</h1>
-        <p class="text-gray-400">标识Tag：<span id="my-tag-display" class="text-primary font-mono"></span></p>
+        <p class="text-gray-400">用户名：<span id="my-tag-display" class="text-primary font-mono"></span></p>
       </div>
       <div id="my-images-loading" class="text-center py-12 hidden">
         <i class="fa fa-spinner fa-spin text-4xl text-primary mb-4"></i>
@@ -181,7 +194,7 @@
         <h2 class="text-xl font-semibold mb-4 text-center">管理员登录</h2>
         <div class="space-y-4">
           <input type="password" id="admin-token-input" placeholder="输入管理密钥（CRON_SECRET）"
-            class="w-full px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white">
+            class="theme-input w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
           <button onclick="adminLogin()" class="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium">
             <i class="fa fa-sign-in mr-2"></i>登录
           </button>
@@ -270,6 +283,21 @@
       document.getElementById('footer-expire-hours').textContent = DISPLAY_CONFIG.expireHours;
     }
 
+    function applyThemeInputs() {
+      const isDark = document.documentElement.classList.contains('dark');
+      document.querySelectorAll('.theme-input').forEach(el => {
+        if (isDark) {
+          el.style.backgroundColor = '#334155';
+          el.style.borderColor = '#475569';
+          el.style.color = '#ffffff';
+        } else {
+          el.style.backgroundColor = '#f9fafb';
+          el.style.borderColor = '#d1d5db';
+          el.style.color = '#111827';
+        }
+      });
+    }
+
     function initTheme() {
       if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.classList.add('dark');
@@ -284,6 +312,7 @@
           el.classList.add('glass-light');
         });
       }
+      applyThemeInputs();
     }
 
     themeToggle.addEventListener('click', () => {
@@ -306,6 +335,7 @@
           el.classList.add('glass');
         });
       }
+      applyThemeInputs();
     });
 
     function initRouter() {
@@ -352,7 +382,7 @@
           localStorage.setItem('userTag', tag);
         }
         if (!currentUserTag) {
-          showToast('请先输入标识Tag');
+          showToast('请先输入用户名');
           document.getElementById('user-tag-input').focus();
           document.getElementById('page-upload').classList.remove('hidden');
           return;
@@ -463,9 +493,10 @@
         formData.append('file', file);
         formData.append('md5', md5Hash);
 
-        const userTag = document.getElementById('user-tag-input').value.trim();
-        if (userTag) {
-          formData.append('user_tag', userTag);
+        const userTag = document.getElementById('user-tag-input').value.trim() || 'default';
+        formData.append('user_tag', userTag);
+
+        if (userTag !== 'default') {
           currentUserTag = userTag;
           localStorage.setItem('userTag', userTag);
           updateNavButtons();
@@ -540,9 +571,17 @@
 
       try {
         const resp = await fetch(`${API_BASE}/my-images?user_tag=${encodeURIComponent(currentUserTag)}`);
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
         const data = await resp.json();
 
         loading.classList.add('hidden');
+
+        if (!data.success) {
+          showToast(data.error || '加载失败');
+          return;
+        }
 
         if (!data.images || data.images.length === 0) {
           empty.classList.remove('hidden');
@@ -553,8 +592,9 @@
           grid.appendChild(createImageCard(img, false));
         });
       } catch (error) {
+        console.error('加载图片列表失败:', error);
         loading.classList.add('hidden');
-        showToast('加载图片列表失败');
+        showToast('加载图片列表失败，请检查网络连接');
       }
     }
 
@@ -567,9 +607,13 @@
       const isExpired = img.expired;
       const timeLeft = isExpired ? '已过期' : `${Math.round((expireDate - Date.now()) / (1000 * 60 * 60))}小时后过期`;
 
+      const safeFilename = (img.filename || '').replace(/'/g, "\\'");
+      const safeUrl = (img.url || '').replace(/'/g, "\\'");
+
       card.innerHTML = `
         <div class="relative">
-          <img src="${img.url}" alt="图片" class="w-full h-40 object-cover ${isExpired ? 'opacity-50' : ''}" loading="lazy">
+          <img src="${img.url}" alt="图片" class="w-full h-40 object-cover ${isExpired ? 'opacity-50' : ''}" loading="lazy"
+               onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'flex items-center justify-center h-40 bg-gray-700\\'><i class=\\'fa fa-image text-4xl text-gray-500\\'></i></div>'">
           ${isExpired ? '<span class="absolute top-2 right-2 bg-danger text-white text-xs px-2 py-1 rounded">已过期</span>' : ''}
         </div>
         <div class="p-3">
@@ -578,15 +622,15 @@
           <p class="text-xs text-gray-500 mt-1">${formatBytes(img.size)}</p>
           ${isAdmin ? `
             <div class="flex space-x-2 mt-2">
-              <button onclick="deleteFile('${img.filename}')" class="flex-1 bg-danger/20 text-danger text-xs px-2 py-1 rounded hover:bg-danger/30 transition-colors">
+              <button onclick="deleteFile('${safeFilename}')" class="flex-1 bg-danger/20 text-danger text-xs px-2 py-1 rounded hover:bg-danger/30 transition-colors">
                 <i class="fa fa-trash mr-1"></i>删除
               </button>
-              <button onclick="copyToClipboard('${img.url}')" class="flex-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors">
+              <button onclick="copyToClipboard('${safeUrl}')" class="flex-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors">
                 <i class="fa fa-copy mr-1"></i>复制链接
               </button>
             </div>
           ` : `
-            <button onclick="copyToClipboard('${img.url}')" class="mt-2 w-full bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors">
+            <button onclick="copyToClipboard('${safeUrl}')" class="mt-2 w-full bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors">
               <i class="fa fa-copy mr-1"></i>复制链接
             </button>
           `}
@@ -655,14 +699,18 @@
             const createdDate = new Date(img.created_at);
             const timeLeft = img.expired ? '已过期' : `${Math.round((expireDate - Date.now()) / (1000 * 60 * 60))}小时后过期`;
 
+            const safeFilename = (img.filename || '').replace(/'/g, "\\'");
+            const safeUrl = (img.url || '').replace(/'/g, "\\'");
+
             row.innerHTML = `
-              <img src="${img.url}" alt="图片" class="w-16 h-16 object-cover rounded-lg ${img.expired ? 'opacity-50' : ''}" loading="lazy">
+              <img src="${img.url}" alt="图片" class="w-16 h-16 object-cover rounded-lg ${img.expired ? 'opacity-50' : ''}" loading="lazy"
+                   onerror="this.style.display='none'">
               <div class="flex-grow min-w-0">
                 <p class="text-sm font-mono truncate text-gray-300">${img.filename}</p>
-                <p class="text-xs text-gray-500">Tag: ${img.user_tag} · ${formatBytes(img.size)} · ${formatDate(createdDate)}</p>
+                <p class="text-xs text-gray-500">用户: ${img.user_tag} · ${formatBytes(img.size)} · ${formatDate(createdDate)}</p>
                 <p class="text-xs ${img.expired ? 'text-danger' : 'text-success'}">${timeLeft}</p>
               </div>
-              <button onclick="deleteFile('${img.filename}')" class="bg-danger/20 text-danger px-3 py-2 rounded-lg hover:bg-danger/30 transition-colors text-sm flex-shrink-0">
+              <button onclick="deleteFile('${safeFilename}')" class="bg-danger/20 text-danger px-3 py-2 rounded-lg hover:bg-danger/30 transition-colors text-sm flex-shrink-0">
                 <i class="fa fa-trash"></i>
               </button>
             `;

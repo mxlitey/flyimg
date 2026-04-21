@@ -69,7 +69,7 @@ export default {
 
         const formData = await request.formData();
         const file = formData.get('file');
-        const userTag = formData.get('user_tag') || 'anonymous';
+        const userTag = formData.get('user_tag') || 'default';
         const md5Hash = formData.get('md5') || null;
 
         if (!file) {

@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS images (
   filename TEXT PRIMARY KEY,
   url TEXT NOT NULL,
   size INTEGER NOT NULL,
-  user_tag TEXT NOT NULL DEFAULT 'anonymous',
+  user_tag TEXT NOT NULL DEFAULT 'default',
   expire_at TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
