@@ -138,16 +138,21 @@ jobs:
 
       - name: 📝 Generate Frontend Config
         run: |
-          cat > frontend/config.js << 'EOF'
-          // 部署时此文件由 GitHub Actions 自动生成
-          const API_BASE = '/api';
+          WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
+          if [ -z "$WORKER_URL" ]; then
+            echo "::error::Worker URL not detected, cannot generate frontend config"
+            exit 1
+          fi
+          WORKER_URL="${WORKER_URL%/}"
+          cat > frontend/config.js << CONFIGEOF
+          const API_BASE = '${WORKER_URL}';
           const DISPLAY_CONFIG = {
             expireHours: 12,
             maxFileSizeMB: 20,
             allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG',
           };
-          EOF
-          echo "✅ Frontend config generated"
+          CONFIGEOF
+          echo "✅ Frontend config generated with Worker URL: $WORKER_URL"
 
       - name: 🌐 Setup Pages Project
         run: |
@@ -155,15 +160,6 @@ jobs:
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data '{"name":"flyimg","production_branch":"main"}' || true
-
-          WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
-          if [ -n "$WORKER_URL" ]; then
-            curl -sf -X PATCH "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/flyimg" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-              -H "Content-Type: application/json" \
-              --data "{\"deployment_configs\":{\"production\":{\"env\":{\"WORKER_API_URL\":{\"value\":\"${WORKER_URL}\"}}}}}" || true
-          fi
-
           echo "✅ Pages project configured"
 
       - name: 📤 Deploy Pages
