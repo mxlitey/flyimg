@@ -34,6 +34,7 @@ jobs:
           if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then MISSING+=("CLOUDFLARE_ACCOUNT_ID"); fi
           if [ -z "${{ secrets.R2_PUBLIC_DOMAIN }}" ]; then MISSING+=("R2_PUBLIC_DOMAIN"); fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then MISSING+=("CRON_SECRET"); fi
+          if [ -z "${{ secrets.WORKER_URL }}" ]; then MISSING+=("WORKER_URL"); fi
 
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "❌ Missing required GitHub Secrets:"
@@ -102,23 +103,10 @@ jobs:
           echo "✅ R2 bucket ready"
 
       - name: 🚀 Deploy Worker
-        id: deploy-worker
         run: |
           DEPLOY_OUTPUT=$(wrangler deploy 2>&1)
           echo "$DEPLOY_OUTPUT"
-
-          WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[a-zA-Z0-9_-]+\.workers\.dev' | head -1 || true)
-
-          if [ -z "$WORKER_URL" ]; then
-            SUBDOMAIN=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain' || true)
-            if [ -n "$SUBDOMAIN" ]; then
-              WORKER_URL="https://flyimg-worker.${SUBDOMAIN}.workers.dev"
-            fi
-          fi
-
-          echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
-          echo "✅ Worker deployed: $WORKER_URL"
+          echo "✅ Worker deployed"
 
       - name: 🔑 Set Worker Secrets
         run: |
@@ -144,50 +132,10 @@ jobs:
 
           echo "✅ Worker secrets configured"
 
-      - name: 🌐 Configure Worker Custom Domain
-        run: |
-          CUSTOM_DOMAIN="${{ secrets.WORKER_CUSTOM_DOMAIN }}"
-          if [ -z "$CUSTOM_DOMAIN" ]; then
-            echo "No custom domain configured, skipping"
-            exit 0
-          fi
-
-          DOMAINS=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result[] | select(.hostname=="'"$CUSTOM_DOMAIN"'") | .id' || true)
-
-          if [ -n "$DOMAINS" ]; then
-            echo "✅ Custom domain already configured"
-          else
-            ZONE_ID=$(curl -sf "https://api.cloudflare.com/client/v4/zones?name=$(echo $CUSTOM_DOMAIN | sed 's/.*\.//')&status=active" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result[0].id' || true)
-
-            if [ -z "$ZONE_ID" ]; then
-              echo "⚠️ Could not find zone for $CUSTOM_DOMAIN, skipping custom domain setup"
-            else
-              curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" \
-                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-                -H "Content-Type: application/json" \
-                --data "{\"hostname\":\"$CUSTOM_DOMAIN\",\"zone_id\":\"$ZONE_ID\",\"service\":\"flyimg-worker\",\"environment\":\"production\"}" && \
-                echo "✅ Custom domain $CUSTOM_DOMAIN configured" || \
-                echo "⚠️ Custom domain configuration failed (may need DNS setup)"
-            fi
-          fi
-
       - name: 📝 Generate Frontend Config
         run: |
-          CUSTOM_DOMAIN="${{ secrets.WORKER_CUSTOM_DOMAIN }}"
-          if [ -n "$CUSTOM_DOMAIN" ]; then
-            API_URL="https://${CUSTOM_DOMAIN}"
-            echo "✅ Using custom domain for API: $API_URL"
-          else
-            API_URL="${{ steps.deploy-worker.outputs.worker_url }}"
-            if [ -z "$API_URL" ]; then
-              echo "::error::Worker URL not detected, cannot generate frontend config"
-              exit 1
-            fi
-            API_URL="${API_URL%/}"
-            echo "✅ Using workers.dev URL for API: $API_URL"
-          fi
+          WORKER_URL="${{ secrets.WORKER_URL }}"
+          WORKER_URL="${WORKER_URL%/}"
 
           EXPIRE_HOURS="${{ secrets.EXPIRE_HOURS }}"
           MAX_FILE_SIZE="${{ secrets.MAX_FILE_SIZE }}"
@@ -195,14 +143,14 @@ jobs:
           MAX_FILE_SIZE_VAL="${MAX_FILE_SIZE:-20}"
 
           cat > frontend/config.js << CONFIGEOF
-          const API_BASE = '${API_URL}';
+          const API_BASE = '${WORKER_URL}';
           const DISPLAY_CONFIG = {
             expireHours: ${EXPIRE_HOURS_VAL},
             maxFileSizeMB: ${MAX_FILE_SIZE_VAL},
             allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG',
           };
           CONFIGEOF
-          echo "✅ Frontend config generated"
+          echo "✅ Frontend config generated with Worker URL: $WORKER_URL"
 
       - name: 🌐 Setup Pages Project
         run: |
@@ -240,16 +188,12 @@ jobs:
             echo "| Pages Frontend | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
             PAGES_URL="${{ steps.deploy-pages.outputs.pages_url }}"
-            CUSTOM_DOMAIN="${{ secrets.WORKER_CUSTOM_DOMAIN }}"
+            WORKER_URL="${{ secrets.WORKER_URL }}"
 
             echo "### 🔗 Access URLs" >> $GITHUB_STEP_SUMMARY
             echo "- **Frontend**: \`${PAGES_URL:-https://flyimg.pages.dev}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Worker API**: \`${WORKER_URL:-N/A}\`" >> $GITHUB_STEP_SUMMARY
-            if [ -n "$CUSTOM_DOMAIN" ]; then
-              echo "- **Custom Domain**: \`https://${CUSTOM_DOMAIN}\`" >> $GITHUB_STEP_SUMMARY
-            fi
+            echo "- **Worker API**: \`${WORKER_URL}\`" >> $GITHUB_STEP_SUMMARY
             echo "- **Admin Panel**: \`${PAGES_URL:-https://flyimg.pages.dev}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -261,7 +205,7 @@ jobs:
             echo "❌ **Deployment failed.** Check the logs above for details." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 🔧 Troubleshooting" >> $GITHUB_STEP_SUMMARY
-            echo "1. Verify all 4 GitHub Secrets are correctly set" >> $GITHUB_STEP_SUMMARY
+            echo "1. Verify all 5 GitHub Secrets are correctly set" >> $GITHUB_STEP_SUMMARY
             echo "2. Check Cloudflare API token has correct permissions (Workers, D1, R2, Pages)" >> $GITHUB_STEP_SUMMARY
             echo "3. Ensure R2 bucket 'flyimg' has public access enabled" >> $GITHUB_STEP_SUMMARY
             echo "4. Re-run the workflow after fixing issues" >> $GITHUB_STEP_SUMMARY

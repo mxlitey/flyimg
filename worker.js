@@ -152,7 +152,7 @@ export default {
             cacheControl: cacheControl
           },
           customMetadata: {
-            expireAt: expireAt.toString()
+            userTag: userTag
           }
         });
 
