@@ -5,85 +5,214 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-  WORKER_SUBDOMAIN: ${{ secrets.WORKER_SUBDOMAIN }}
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 15
 
-      - name: Setup Node.js
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔐 Validate Required Secrets
+        run: |
+          echo "========================================="
+          echo "  Flyimg · 瞬传・瞬用 - Deployment Check"
+          echo "========================================="
+          echo ""
+          MISSING=()
+
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then MISSING+=("CLOUDFLARE_API_TOKEN"); fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then MISSING+=("CLOUDFLARE_ACCOUNT_ID"); fi
+          if [ -z "${{ secrets.R2_PUBLIC_DOMAIN }}" ]; then MISSING+=("R2_PUBLIC_DOMAIN"); fi
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then MISSING+=("CRON_SECRET"); fi
+
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "❌ Missing required GitHub Secrets:"
+            echo ""
+            for s in "${MISSING[@]}"; do
+              echo "  • $s"
+            done
+            echo ""
+            echo "👉 Go to: Settings → Secrets and variables → Actions → New repository secret"
+            echo "📖 See README.md for detailed setup instructions."
+            exit 1
+          fi
+
+          echo "✅ All required secrets are configured"
+          echo ""
+
+      - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Wrangler
-        run: npm install -g wrangler
-
-      - name: Ensure R2 Bucket
-        run: wrangler r2 bucket create flyimg || true
-
-      - name: Create D1 Database
+      - name: 📦 Install Wrangler
         run: |
-          DB_OUTPUT=$(wrangler d1 create flyimg-db 2>&1 || true)
-          echo "$DB_OUTPUT"
-          DB_ID=$(echo "$DB_OUTPUT" | grep -oP 'database_id = "\K[^"]+' || true)
-          if [ -n "$DB_ID" ]; then
-            echo "New D1 database created with ID: $DB_ID"
-            sed -i "s/YOUR_D1_DATABASE_ID/$DB_ID/" wrangler.toml
+          npm install -g wrangler
+          echo "✅ Wrangler $(wrangler --version) installed"
+
+      - name: 🗄️ Setup D1 Database
+        id: setup-d1
+        run: |
+          echo "Checking for existing D1 database 'flyimg-db'..."
+
+          D1_ID=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | \
+            jq -r '.result[] | select(.name=="flyimg-db") | .uuid' | head -1 || true)
+
+          if [ -n "$D1_ID" ]; then
+            echo "✅ Found existing D1 database: $D1_ID"
           else
-            echo "D1 database may already exist, using existing ID from secrets"
-            if [ -n "${{ secrets.D1_DATABASE_ID }}" ]; then
-              sed -i "s/YOUR_D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/" wrangler.toml
+            echo "Creating new D1 database 'flyimg-db'..."
+            CREATE_OUTPUT=$(wrangler d1 create flyimg-db 2>&1 || true)
+            D1_ID=$(echo "$CREATE_OUTPUT" | grep -oP 'database_id\s*=\s*"\K[^"]+' || true)
+
+            if [ -z "$D1_ID" ]; then
+              echo "::error::Failed to create D1 database."
+              echo "Output: $CREATE_OUTPUT"
+              echo ""
+              echo "Please create it manually in Cloudflare Dashboard or run:"
+              echo "  npx wrangler d1 create flyimg-db"
+              echo "Then add the database_id to wrangler.toml"
+              exit 1
+            fi
+            echo "✅ Created new D1 database: $D1_ID"
+          fi
+
+          echo "database_id=$D1_ID" >> $GITHUB_OUTPUT
+          sed -i "s/YOUR_D1_DATABASE_ID/$D1_ID/g" wrangler.toml
+
+      - name: 📊 Execute D1 Migration
+        run: |
+          wrangler d1 execute flyimg-db --file=migrations/0001_init.sql --remote
+          echo "✅ D1 migration completed"
+
+      - name: 🪣 Ensure R2 Bucket
+        run: |
+          wrangler r2 bucket create flyimg 2>/dev/null || true
+          echo "✅ R2 bucket ready"
+
+      - name: 🚀 Deploy Worker
+        id: deploy-worker
+        run: |
+          DEPLOY_OUTPUT=$(wrangler deploy 2>&1)
+          echo "$DEPLOY_OUTPUT"
+
+          WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[a-zA-Z0-9_-]+\.workers\.dev' | head -1 || true)
+
+          if [ -z "$WORKER_URL" ]; then
+            SUBDOMAIN=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain' || true)
+            if [ -n "$SUBDOMAIN" ]; then
+              WORKER_URL="https://flyimg-worker.${SUBDOMAIN}.workers.dev"
             fi
           fi
 
-      - name: Execute D1 Migration
-        run: wrangler d1 execute flyimg-db --file=migrations/0001_init.sql --remote || true
+          echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
+          echo "✅ Worker deployed: $WORKER_URL"
 
-      - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          secrets: |
-            R2_PUBLIC_DOMAIN
-            CRON_SECRET
-        env:
-          R2_PUBLIC_DOMAIN: ${{ secrets.R2_PUBLIC_DOMAIN }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-
-      - name: Generate config.js
+      - name: 🔑 Set Worker Secrets
         run: |
-          echo "// 部署时此文件由 GitHub Actions 自动生成" > frontend/config.js
-          echo "const API_BASE = '/api';" >> frontend/config.js
-          echo "const DISPLAY_CONFIG = {" >> frontend/config.js
-          echo "  expireHours: 12," >> frontend/config.js
-          echo "  maxFileSizeMB: 20," >> frontend/config.js
-          echo "  allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG'," >> frontend/config.js
-          echo "};" >> frontend/config.js
+          BODY1=$(jq -n --arg name "R2_PUBLIC_DOMAIN" --arg text "${{ secrets.R2_PUBLIC_DOMAIN }}" '{name: $name, text: $text, type: "secret_text"}')
+          curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY1" || echo "⚠️ R2_PUBLIC_DOMAIN secret may already be set"
 
-      - name: Create Pages Project (if not exists)
+          BODY2=$(jq -n --arg name "CRON_SECRET" --arg text "${{ secrets.CRON_SECRET }}" '{name: $name, text: $text, type: "secret_text"}')
+          curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY2" || echo "⚠️ CRON_SECRET secret may already be set"
+
+          echo "✅ Worker secrets configured"
+
+      - name: 📝 Generate Frontend Config
         run: |
-          curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
+          cat > frontend/config.js << 'EOF'
+          // 部署时此文件由 GitHub Actions 自动生成
+          const API_BASE = '/api';
+          const DISPLAY_CONFIG = {
+            expireHours: 12,
+            maxFileSizeMB: 20,
+            allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG',
+          };
+          EOF
+          echo "✅ Frontend config generated"
+
+      - name: 🌐 Setup Pages Project
+        run: |
+          curl -sf -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data '{"name":"flyimg","production_branch":"main"}' || true
 
-      - name: Set Pages Environment Variables
-        run: |
-          WORKER_URL="https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev"
-          curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/flyimg" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data "{\"deployment_configs\":{\"production\":{\"env\":{\"WORKER_API_URL\":{\"value\":\"${WORKER_URL}\"}}}}}" || true
+          WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
+          if [ -n "$WORKER_URL" ]; then
+            curl -sf -X PATCH "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/flyimg" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "{\"deployment_configs\":{\"production\":{\"env\":{\"WORKER_API_URL\":{\"value\":\"${WORKER_URL}\"}}}}}" || true
+          fi
 
-      - name: Deploy Pages (Frontend)
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy frontend --project-name=flyimg --commit-dirty=true
+          echo "✅ Pages project configured"
+
+      - name: 📤 Deploy Pages
+        id: deploy-pages
+        run: |
+          DEPLOY_OUTPUT=$(wrangler pages deploy frontend --project-name=flyimg --commit-dirty=true 2>&1)
+          echo "$DEPLOY_OUTPUT"
+
+          PAGES_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[a-zA-Z0-9_-]+\.pages\.dev' | head -1 || true)
+          echo "pages_url=$PAGES_URL" >> $GITHUB_OUTPUT
+          echo "✅ Pages deployed: $PAGES_URL"
+
+      - name: 📋 Deployment Summary
+        if: always()
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ **All components deployed successfully!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| D1 Database (flyimg-db) | ✅ Ready |" >> $GITHUB_STEP_SUMMARY
+            echo "| R2 Bucket (flyimg) | ✅ Ready |" >> $GITHUB_STEP_SUMMARY
+            echo "| Worker API | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Worker Secrets | ✅ Configured |" >> $GITHUB_STEP_SUMMARY
+            echo "| Pages Frontend | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
+            PAGES_URL="${{ steps.deploy-pages.outputs.pages_url }}"
+
+            echo "### 🔗 Access URLs" >> $GITHUB_STEP_SUMMARY
+            echo "- **Frontend**: \`${PAGES_URL:-https://flyimg.pages.dev}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Worker API**: \`${WORKER_URL:-N/A}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Admin Panel**: \`${PAGES_URL:-https://flyimg.pages.dev}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            echo "### 📌 Next Steps" >> $GITHUB_STEP_SUMMARY
+            echo "1. Visit the frontend URL to start using the service" >> $GITHUB_STEP_SUMMARY
+            echo "2. Access admin panel by adding \`?token=YOUR_CRON_SECRET\` to the frontend URL" >> $GITHUB_STEP_SUMMARY
+            echo "3. Configure Cloudflare Rate Limiting in WAF settings (see README)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Deployment failed.** Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔧 Troubleshooting" >> $GITHUB_STEP_SUMMARY
+            echo "1. Verify all 4 GitHub Secrets are correctly set" >> $GITHUB_STEP_SUMMARY
+            echo "2. Check Cloudflare API token has correct permissions (Workers, D1, R2, Pages)" >> $GITHUB_STEP_SUMMARY
+            echo "3. Ensure R2 bucket 'flyimg' has public access enabled" >> $GITHUB_STEP_SUMMARY
+            echo "4. Re-run the workflow after fixing issues" >> $GITHUB_STEP_SUMMARY
+          fi
