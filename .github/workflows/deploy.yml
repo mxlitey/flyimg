@@ -28,6 +28,24 @@ jobs:
       - name: Ensure R2 Bucket
         run: wrangler r2 bucket create flyimg || true
 
+      - name: Create D1 Database
+        run: |
+          DB_OUTPUT=$(wrangler d1 create flyimg-db 2>&1 || true)
+          echo "$DB_OUTPUT"
+          DB_ID=$(echo "$DB_OUTPUT" | grep -oP 'database_id = "\K[^"]+' || true)
+          if [ -n "$DB_ID" ]; then
+            echo "New D1 database created with ID: $DB_ID"
+            sed -i "s/YOUR_D1_DATABASE_ID/$DB_ID/" wrangler.toml
+          else
+            echo "D1 database may already exist, using existing ID from secrets"
+            if [ -n "${{ secrets.D1_DATABASE_ID }}" ]; then
+              sed -i "s/YOUR_D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/" wrangler.toml
+            fi
+          fi
+
+      - name: Execute D1 Migration
+        run: wrangler d1 execute flyimg-db --file=migrations/0001_init.sql --remote || true
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
@@ -42,7 +60,7 @@ jobs:
       - name: Generate config.js
         run: |
           echo "// 部署时此文件由 GitHub Actions 自动生成" > frontend/config.js
-          echo "const API_BASE = 'https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev';" >> frontend/config.js
+          echo "const API_BASE = '/api';" >> frontend/config.js
           echo "const DISPLAY_CONFIG = {" >> frontend/config.js
           echo "  expireHours: 12," >> frontend/config.js
           echo "  maxFileSizeMB: 20," >> frontend/config.js
@@ -55,6 +73,14 @@ jobs:
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data '{"name":"flyimg","production_branch":"main"}' || true
+
+      - name: Set Pages Environment Variables
+        run: |
+          WORKER_URL="https://flyimg-worker.${WORKER_SUBDOMAIN}.workers.dev"
+          curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/flyimg" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "{\"deployment_configs\":{\"production\":{\"env\":{\"WORKER_API_URL\":{\"value\":\"${WORKER_URL}\"}}}}}" || true
 
       - name: Deploy Pages (Frontend)
         uses: cloudflare/wrangler-action@v3

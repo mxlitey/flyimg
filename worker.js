@@ -1,9 +1,5 @@
-// Flyimg · 瞬图 - 最强省资源版
-// 图片直接走R2公网，Worker只处理上传、统计和定时清理
-
 export default {
   async fetch(request, env, ctx) {
-    // 从环境变量获取所有配置
     const CONFIG = {
       R2_BUCKET: env.R2_BUCKET,
       R2_PUBLIC_DOMAIN: env.R2_PUBLIC_DOMAIN,
@@ -15,16 +11,13 @@ export default {
       CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',') : null
     };
 
-    // CORS处理（支持跨域）
     if (request.method === 'OPTIONS') {
       const origin = request.headers.get('Origin');
       const headers = {
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Cron-Secret',
         'Access-Control-Max-Age': '86400'
       };
-      
-      // 如果配置了允许的来源，验证Origin；否则允许所有
       if (CONFIG.CORS_ALLOWED_ORIGINS) {
         if (CONFIG.CORS_ALLOWED_ORIGINS.includes(origin)) {
           headers['Access-Control-Allow-Origin'] = origin;
@@ -35,19 +28,14 @@ export default {
       } else {
         headers['Access-Control-Allow-Origin'] = '*';
       }
-      
       return new Response(null, { headers });
     }
 
     const url = new URL(request.url);
     const origin = request.headers.get('Origin');
-    
-    // 通用响应头（带CORS）
+
     const getResponseHeaders = () => {
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      
+      const headers = { 'Content-Type': 'application/json' };
       if (CONFIG.CORS_ALLOWED_ORIGINS) {
         if (CONFIG.CORS_ALLOWED_ORIGINS.includes(origin)) {
           headers['Access-Control-Allow-Origin'] = origin;
@@ -56,7 +44,6 @@ export default {
       } else {
         headers['Access-Control-Allow-Origin'] = '*';
       }
-      
       return headers;
     };
 
@@ -64,89 +51,215 @@ export default {
       const headers = { ...getResponseHeaders(), ...extraHeaders };
       return new Response(JSON.stringify(data), { status, headers });
     };
-    
-    // 上传图片
+
+    const verifyAdmin = () => {
+      const secret = request.headers.get('X-Cron-Secret');
+      return secret === CONFIG.CRON_SECRET;
+    };
+
     if (request.method === 'POST' && url.pathname === '/upload') {
       try {
-        // 检查速率限制
-        const rateLimitCheck = checkRateLimit(env, 'upload');
-        if (rateLimitCheck.limited) {
-          return jsonResponse({ 
-            error: '上传过于频繁，请稍后再试',
-            rateLimited: true
-          }, 429);
-        }
-        
-        // 先检查存储容量
-        const storageInfo = await getStorageInfo(env.R2_BUCKET);
+        const storageInfo = await getStorageInfo(env.DB);
         if (storageInfo.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
-          return jsonResponse({ 
+          return jsonResponse({
             error: '存储空间已满，请等待过期图片自动清理后再试',
             storageFull: true
           }, 429);
         }
-        
+
         const formData = await request.formData();
         const file = formData.get('file');
-        
+        const userTag = formData.get('user_tag') || 'anonymous';
+        const md5Hash = formData.get('md5') || null;
+
         if (!file) {
           return jsonResponse({ error: '未上传文件' }, 400);
         }
-        
+
         if (!CONFIG.ALLOWED_TYPES.includes(file.type)) {
-          return jsonResponse({ error: `不支持的文件类型，仅支持：${CONFIG.ALLOWED_TYPES_DISPLAY}` }, 400);
+          const allowedDisplay = CONFIG.ALLOWED_TYPES.map(t => {
+            const ext = getFileExtension(t);
+            return ext.toUpperCase();
+          }).join('、');
+          return jsonResponse({ error: `不支持的文件类型，仅支持：${allowedDisplay}` }, 400);
         }
-        
+
         if (file.size > CONFIG.MAX_FILE_SIZE) {
-          return jsonResponse({ error: `文件大小超过${CONFIG.MAX_FILE_SIZE_MB}MB限制` }, 400);
+          const maxMB = CONFIG.MAX_FILE_SIZE / (1024 * 1024);
+          return jsonResponse({ error: `文件大小超过${maxMB}MB限制` }, 400);
         }
-        
-        // 生成唯一文件名
+
         const timestamp = Date.now();
         const randomStr = Math.random().toString(36).substring(2, 15);
         const ext = getFileExtension(file.type);
-        const fileName = `${timestamp}-${randomStr}.${ext}`;
-        
-        // 计算过期时间
+        const fileName = md5Hash ? `${md5Hash}.${ext}` : `${timestamp}-${randomStr}.${ext}`;
+
+        if (md5Hash) {
+          const existing = await env.DB.prepare(
+            'SELECT url, expire_at FROM images WHERE filename = ? LIMIT 1'
+          ).bind(fileName).first();
+
+          if (existing) {
+            const expireAt = new Date(existing.expire_at).getTime();
+            if (Date.now() < expireAt) {
+              return jsonResponse({
+                success: true,
+                url: existing.url,
+                markdown: `![图片](${existing.url})`,
+                html: `<img src="${existing.url}" alt="flyimg">`,
+                expireAt: new Date(expireAt).toISOString(),
+                expireHours: CONFIG.EXPIRE_HOURS,
+                cached: true
+              });
+            } else {
+              await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(fileName).run();
+            }
+          }
+        }
+
         const expireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
-        
-        // 上传到R2
+        const expireAtISO = new Date(expireAt).toISOString();
+
         await env.R2_BUCKET.put(fileName, file.stream(), {
           httpMetadata: {
             contentType: file.type,
-            cacheControl: 'public, max-age=31536000'
+            cacheControl: 'public, max-age=43200'
           },
           customMetadata: {
             expireAt: expireAt.toString()
           }
         });
-        
-        // 生成R2公网直链（强制使用https）
+
         const domain = CONFIG.R2_PUBLIC_DOMAIN.replace(/^http:\/\//i, 'https://');
         const imageUrl = `${domain}/${fileName}`;
-        
+
+        await env.DB.prepare(
+          'INSERT INTO images (filename, url, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(
+          fileName,
+          imageUrl,
+          file.size,
+          userTag,
+          expireAtISO,
+          new Date(timestamp).toISOString()
+        ).run();
+
         return jsonResponse({
           success: true,
           url: imageUrl,
           markdown: `![图片](${imageUrl})`,
           html: `<img src="${imageUrl}" alt="flyimg">`,
-          expireAt: new Date(expireAt).toISOString(),
-          expireHours: CONFIG.EXPIRE_HOURS
+          expireAt: expireAtISO,
+          expireHours: CONFIG.EXPIRE_HOURS,
+          cached: false
         });
-        
+
       } catch (error) {
         console.error('上传失败:', error);
         return jsonResponse({ error: '上传失败' }, 500);
       }
     }
-    
-    // 获取存储统计信息
+
+    if (request.method === 'GET' && url.pathname === '/my-images') {
+      try {
+        const userTag = url.searchParams.get('user_tag');
+        if (!userTag) {
+          return jsonResponse({ error: '缺少user_tag参数' }, 400);
+        }
+
+        const now = new Date().toISOString();
+        const { results } = await env.DB.prepare(
+          'SELECT filename, url, size, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC'
+        ).bind(userTag, now).all();
+
+        return jsonResponse({
+          success: true,
+          images: results.map(img => ({
+            ...img,
+            expired: false
+          }))
+        });
+
+      } catch (error) {
+        console.error('查询失败:', error);
+        return jsonResponse({ error: '查询失败' }, 500);
+      }
+    }
+
+    if (request.method === 'GET' && url.pathname === '/all-images') {
+      if (!verifyAdmin()) {
+        return jsonResponse({ error: '未授权，请提供有效的X-Cron-Secret' }, 401);
+      }
+
+      try {
+        const now = new Date().toISOString();
+        const { results } = await env.DB.prepare(
+          'SELECT filename, url, size, user_tag, expire_at, created_at FROM images ORDER BY created_at DESC'
+        ).all();
+
+        return jsonResponse({
+          success: true,
+          images: results.map(img => ({
+            ...img,
+            expired: img.expire_at < now
+          }))
+        });
+
+      } catch (error) {
+        console.error('查询失败:', error);
+        return jsonResponse({ error: '查询失败' }, 500);
+      }
+    }
+
+    if (request.method === 'POST' && url.pathname === '/delete') {
+      if (!verifyAdmin()) {
+        return jsonResponse({ error: '未授权，请提供有效的X-Cron-Secret' }, 401);
+      }
+
+      try {
+        const { filename } = await request.json();
+        if (!filename) {
+          return jsonResponse({ error: '缺少filename参数' }, 400);
+        }
+
+        await env.R2_BUCKET.delete(filename);
+        await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(filename).run();
+
+        return jsonResponse({
+          success: true,
+          message: '文件已删除'
+        });
+
+      } catch (error) {
+        console.error('删除失败:', error);
+        return jsonResponse({ error: '删除失败' }, 500);
+      }
+    }
+
+    if (request.method === 'POST' && url.pathname === '/clean') {
+      if (!verifyAdmin()) {
+        return jsonResponse({ error: '未授权，请提供有效的X-Cron-Secret' }, 401);
+      }
+
+      try {
+        const deletedCount = await cleanupExpiredFiles(env);
+        return jsonResponse({
+          success: true,
+          message: `清理完成，删除了${deletedCount}张过期图片`
+        });
+
+      } catch (error) {
+        console.error('清理失败:', error);
+        return jsonResponse({ error: '清理失败' }, 500);
+      }
+    }
+
     if (request.method === 'GET' && url.pathname === '/stats') {
       try {
-        const storageInfo = await getStorageInfo(env.R2_BUCKET);
+        const storageInfo = await getStorageInfo(env.DB);
         const maxStorageFormatted = formatBytes(CONFIG.MAX_STORAGE_SIZE);
         const usagePercent = Math.round((storageInfo.totalSize / CONFIG.MAX_STORAGE_SIZE) * 100);
-        
+
         return jsonResponse({
           success: true,
           totalFiles: storageInfo.totalFiles,
@@ -157,49 +270,25 @@ export default {
           usagePercent: usagePercent,
           isFull: storageInfo.totalSize >= CONFIG.MAX_STORAGE_SIZE
         });
-        
+
       } catch (error) {
         console.error('获取统计失败:', error);
         return jsonResponse({ error: '获取统计失败' }, 500);
       }
     }
-    
-    // 清理过期图片（由Cron触发或手动调用）
-    if (request.method === 'POST' && url.pathname === '/cleanup') {
-      // 验证请求是否来自Cloudflare Cron
-      const authHeader = request.headers.get('Authorization');
-      if (authHeader !== `Bearer ${CONFIG.CRON_SECRET}`) {
-        return new Response('未授权', { status: 401 });
-      }
-      
-      try {
-        const deletedCount = await cleanupExpiredFiles(env.R2_BUCKET);
-        
-        return jsonResponse({
-          success: true,
-          message: `清理完成，删除了${deletedCount}张过期图片`
-        });
-        
-      } catch (error) {
-        console.error('清理失败:', error);
-        return jsonResponse({ error: '清理失败' }, 500);
-      }
-    }
-    
-    return new Response('Flyimg · 瞬图 API', { status: 200 });
+
+    return new Response('Flyimg · 瞬传・瞬用', { status: 200 });
   },
-  
-  // Cron触发器 - 直接调用清理函数
+
   async scheduled(event, env, ctx) {
     ctx.waitUntil(
-      cleanupExpiredFiles(env.R2_BUCKET)
+      cleanupExpiredFiles(env)
         .then(count => console.log(`定时清理完成，删除了${count}张过期图片`))
         .catch(err => console.error('定时清理失败:', err))
     );
   }
 };
 
-// 从MIME类型获取文件扩展名
 function getFileExtension(mimeType) {
   const mimeToExt = {
     'image/jpeg': 'jpg',
@@ -213,97 +302,43 @@ function getFileExtension(mimeType) {
   return mimeToExt[mimeType] || mimeType.split('/')[1] || 'jpg';
 }
 
-// 清理过期文件的核心函数
-async function cleanupExpiredFiles(bucket) {
-  let deletedCount = 0;
-  let cursor = undefined;
-  
-  do {
-    const listResult = await bucket.list({ cursor, include: ['customMetadata'] });
-    
-    const expiredKeys = [];
-    for (const object of listResult.objects) {
-      const expireAt = parseInt(object.customMetadata?.expireAt || '0');
-      if (Date.now() > expireAt) {
-        expiredKeys.push(object.key);
-      }
-    }
-    
-    // 批量删除过期文件
-    if (expiredKeys.length > 0) {
-      await Promise.all(expiredKeys.map(key => bucket.delete(key)));
-      deletedCount += expiredKeys.length;
-    }
-    
-    cursor = listResult.cursor;
-  } while (cursor);
-  
-  return deletedCount;
+async function cleanupExpiredFiles(env) {
+  const now = new Date().toISOString();
+  const { results } = await env.DB.prepare(
+    'SELECT filename FROM images WHERE expire_at <= ?'
+  ).bind(now).all();
+
+  if (results.length === 0) return 0;
+
+  const filenames = results.map(r => r.filename);
+
+  await Promise.all(filenames.map(key => env.R2_BUCKET.delete(key)));
+
+  await env.DB.prepare(
+    'DELETE FROM images WHERE expire_at <= ?'
+  ).bind(now).run();
+
+  return filenames.length;
 }
 
-// 简单的速率限制（使用KV存储或内存缓存）
-function checkRateLimit(env, action) {
-  // 如果没有配置KV，使用简单的内存限制（重启后重置）
-  if (!globalThis.__rateLimits) {
-    globalThis.__rateLimits = new Map();
-  }
-  
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1分钟窗口
-  const maxRequests = 10; // 每分钟最多10次上传
-  
-  const key = `${action}`;
-  const limits = globalThis.__rateLimits.get(key) || [];
-  
-  // 清理过期记录
-  const recentRequests = limits.filter(time => now - time < windowMs);
-  
-  if (recentRequests.length >= maxRequests) {
-    return { limited: true };
-  }
-  
-  recentRequests.push(now);
-  globalThis.__rateLimits.set(key, recentRequests);
-  
-  return { limited: false };
-}
+async function getStorageInfo(db) {
+  const now = new Date().toISOString();
+  const result = await db.prepare(
+    'SELECT COUNT(*) as totalFiles, COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
+  ).bind(now).first();
 
-// 获取存储信息（复用函数）
-async function getStorageInfo(bucket) {
-  let totalFiles = 0;
-  let totalSize = 0;
-  let cursor = undefined;
-  
-  do {
-    const listResult = await bucket.list({ cursor, include: ['customMetadata'] });
-    
-    for (const object of listResult.objects) {
-      const expireAt = parseInt(object.customMetadata?.expireAt || '0');
-      // 只统计未过期的文件
-      if (Date.now() <= expireAt) {
-        totalFiles++;
-        totalSize += object.size;
-      }
-    }
-    
-    cursor = listResult.cursor;
-  } while (cursor);
-  
   return {
-    totalFiles,
-    totalSize,
-    formattedSize: formatBytes(totalSize)
+    totalFiles: result.totalFiles,
+    totalSize: result.totalSize,
+    formattedSize: formatBytes(result.totalSize)
   };
 }
 
 function formatBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 B';
-  
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flyimg · 瞬图</title>
+  <title>Flyimg · 瞬传・瞬用</title>
   <link rel="icon" href="favicon.png" type="image/png">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
@@ -47,17 +47,25 @@
   <script src="config.js"></script>
 </head>
 <body class="min-h-screen transition-colors duration-300 bg-gradient-to-b from-dark-900 to-dark-800 text-white dark">
-  <!-- 导航栏 -->
   <nav class="sticky top-0 z-50 glass">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
         <div class="flex items-center">
-          <a href="#" class="flex items-center">
+          <a href="/" class="flex items-center">
             <img src="favicon.png" alt="Logo" class="w-10 h-10 mr-3">
-            <span class="text-xl font-bold">Flyimg · 瞬图</span>
+            <span class="text-xl font-bold">Flyimg · 瞬传・瞬用</span>
           </a>
         </div>
-        <div class="flex items-center">
+        <div class="flex items-center space-x-2">
+          <button id="nav-upload" onclick="navigateTo('upload')" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+            <i class="fa fa-cloud-upload mr-1"></i>上传
+          </button>
+          <button id="nav-my" onclick="navigateTo('my-images')" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm hidden">
+            <i class="fa fa-image mr-1"></i>我的图片
+          </button>
+          <button id="nav-admin" onclick="navigateTo('admin')" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm hidden">
+            <i class="fa fa-shield mr-1"></i>管理
+          </button>
           <button id="theme-toggle" class="p-2 rounded-lg hover:bg-white/10 transition-colors">
             <i class="fa fa-sun-o text-xl dark:hidden"></i>
             <i class="fa fa-moon-o text-xl hidden dark:inline"></i>
@@ -67,106 +75,181 @@
     </div>
   </nav>
 
-  <!-- 主要内容 -->
   <main class="flex-grow max-w-4xl mx-auto px-4 py-8 w-full">
-    <!-- 标题区域 -->
-    <div class="text-center mb-12">
-      <h1 class="text-4xl md:text-5xl font-bold mb-4">瞬传 · 瞬用 · 瞬逝</h1>
-      <p class="text-xl text-gray-400 max-w-2xl mx-auto" id="subtitle">
-        无需登录 · <span id="expire-hours-text">12</span>小时自动永久删除 · Cloudflare全球CDN加速
-      </p>
-    </div>
-
-    <!-- 上传区域 -->
-    <div id="upload-area" class="glass rounded-2xl p-10 mb-8 border-2 border-dashed border-gray-600 hover:border-primary transition-all duration-300 cursor-pointer">
-      <div class="text-center">
-        <i class="fa fa-cloud-upload text-7xl text-gray-500 mb-6"></i>
-        <h2 class="text-2xl font-semibold mb-3">拖拽图片到这里上传</h2>
-        <p class="text-gray-400 mb-4">或者点击选择文件，也可以按 Ctrl+V 粘贴剪贴板中的图片</p>
-        <p class="text-sm text-gray-500" id="file-info">
-          支持 <span id="allowed-types-text">JPG、PNG、GIF、WebP、SVG</span> 格式，最大 <span id="max-size-text">20</span>MB
+    <div id="page-upload">
+      <div class="text-center mb-12">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4">瞬传・瞬用</h1>
+        <p class="text-xl text-gray-400 max-w-2xl mx-auto">
+          无需登录 · <span id="expire-hours-text">12</span>小时自动永久删除 · Cloudflare全球CDN加速
         </p>
-        <input type="file" id="file-input" accept="image/*" class="hidden">
+      </div>
+
+      <div class="mb-6 flex items-center justify-center space-x-4">
+        <label class="text-sm text-gray-400">标识Tag：</label>
+        <input type="text" id="user-tag-input" placeholder="输入你的标识（用于查看已传图片）"
+          class="px-4 py-2 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white text-sm w-72">
+      </div>
+
+      <div id="upload-area" class="glass rounded-2xl p-10 mb-8 border-2 border-dashed border-gray-600 hover:border-primary transition-all duration-300 cursor-pointer">
+        <div class="text-center">
+          <i class="fa fa-cloud-upload text-7xl text-gray-500 mb-6"></i>
+          <h2 class="text-2xl font-semibold mb-3">拖拽图片到这里上传</h2>
+          <p class="text-gray-400 mb-4">或者点击选择文件，也可以按 Ctrl+V 粘贴剪贴板中的图片</p>
+          <p class="text-sm text-gray-500">
+            支持 <span id="allowed-types-text">JPG、PNG、GIF、WebP、SVG</span> 格式，最大 <span id="max-size-text">20</span>MB
+          </p>
+          <input type="file" id="file-input" accept="image/*" class="hidden">
+        </div>
+      </div>
+
+      <div id="upload-progress" class="hidden glass rounded-2xl p-10 mb-8">
+        <div class="flex items-center justify-center mb-4">
+          <i class="fa fa-spinner fa-spin text-primary text-3xl mr-4"></i>
+          <span class="text-xl font-medium" id="upload-status-text">正在上传...</span>
+        </div>
+        <div class="w-full bg-gray-700 rounded-full h-3">
+          <div id="progress-bar" class="bg-primary h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <p id="md5-status" class="text-sm text-gray-400 mt-3 text-center hidden">正在计算文件指纹...</p>
+      </div>
+
+      <div id="upload-result" class="hidden glass rounded-2xl p-10 mb-8">
+        <div class="flex items-center justify-center mb-6">
+          <i class="fa fa-check-circle text-success text-3xl mr-4"></i>
+          <span class="text-xl font-medium">上传成功！</span>
+          <span id="expire-time" class="ml-auto text-sm text-gray-400 bg-primary/20 px-4 py-2 rounded-full"></span>
+        </div>
+
+        <div class="mb-8">
+          <img id="preview-image" src="" alt="预览" class="max-w-full h-auto rounded-lg mx-auto max-h-80 object-contain shadow-xl">
+        </div>
+
+        <div class="space-y-4 text-left">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">直链</label>
+            <div class="flex">
+              <input type="text" id="direct-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+              <button onclick="copyLink('direct-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Markdown</label>
+            <div class="flex">
+              <input type="text" id="markdown-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+              <button onclick="copyLink('markdown-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">HTML</label>
+            <div class="flex">
+              <input type="text" id="html-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
+              <button onclick="copyLink('html-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="resetUpload()" class="mt-8 w-full bg-gray-700 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium">
+          <i class="fa fa-upload mr-2"></i>继续上传
+        </button>
       </div>
     </div>
 
-    <!-- 上传进度 -->
-    <div id="upload-progress" class="hidden glass rounded-2xl p-10 mb-8">
-      <div class="flex items-center justify-center mb-6">
-        <i class="fa fa-spinner fa-spin text-primary text-3xl mr-4"></i>
-        <span class="text-xl font-medium">正在上传...</span>
+    <div id="page-my-images" class="hidden">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold mb-2">我的图片</h1>
+        <p class="text-gray-400">标识Tag：<span id="my-tag-display" class="text-primary font-mono"></span></p>
       </div>
-      <div class="w-full bg-gray-700 rounded-full h-3">
-        <div id="progress-bar" class="bg-primary h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+      <div id="my-images-loading" class="text-center py-12 hidden">
+        <i class="fa fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+        <p class="text-gray-400">加载中...</p>
       </div>
+      <div id="my-images-empty" class="text-center py-12 hidden">
+        <i class="fa fa-image text-6xl text-gray-600 mb-4"></i>
+        <p class="text-gray-400 text-lg">暂无图片</p>
+        <button onclick="navigateTo('upload')" class="mt-4 bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">去上传</button>
+      </div>
+      <div id="my-images-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
-    <!-- 上传结果 -->
-    <div id="upload-result" class="hidden glass rounded-2xl p-10 mb-8">
-      <div class="flex items-center justify-center mb-6">
-        <i class="fa fa-check-circle text-success text-3xl mr-4"></i>
-        <span class="text-xl font-medium">上传成功！</span>
-        <span id="expire-time" class="ml-auto text-sm text-gray-400 bg-primary/20 px-4 py-2 rounded-full"></span>
+    <div id="page-admin" class="hidden">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold mb-2">管理后台</h1>
+        <p class="text-gray-400">瞬传・瞬用 · 系统管理</p>
       </div>
-      
-      <!-- 图片预览 -->
-      <div class="mb-8">
-        <img id="preview-image" src="" alt="预览" class="max-w-full h-auto rounded-lg mx-auto max-h-80 object-contain shadow-xl">
-      </div>
-      
-      <!-- 链接列表 -->
-      <div class="space-y-4 text-left">
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">直链</label>
-          <div class="flex">
-            <input type="text" id="direct-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
-            <button onclick="copyLink('direct-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">
-              复制
-            </button>
-          </div>
-        </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">Markdown</label>
-          <div class="flex">
-            <input type="text" id="markdown-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
-            <button onclick="copyLink('markdown-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">
-              复制
-            </button>
-          </div>
-        </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">HTML</label>
-          <div class="flex">
-            <input type="text" id="html-link" class="flex-grow px-4 py-3 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white" readonly>
-            <button onclick="copyLink('html-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">
-              复制
-            </button>
-          </div>
+
+      <div id="admin-login" class="glass rounded-2xl p-8 mb-8 max-w-md mx-auto">
+        <h2 class="text-xl font-semibold mb-4 text-center">管理员登录</h2>
+        <div class="space-y-4">
+          <input type="password" id="admin-token-input" placeholder="输入管理密钥（CRON_SECRET）"
+            class="w-full px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-dark-700 text-white">
+          <button onclick="adminLogin()" class="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium">
+            <i class="fa fa-sign-in mr-2"></i>登录
+          </button>
         </div>
       </div>
-      
-      <button onclick="resetUpload()" class="mt-8 w-full bg-gray-700 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium">
-        <i class="fa fa-upload mr-2"></i>继续上传
-      </button>
+
+      <div id="admin-panel" class="hidden">
+        <div class="flex flex-wrap gap-3 mb-6 justify-center">
+          <button onclick="loadAllImages()" class="bg-primary text-white px-5 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm">
+            <i class="fa fa-refresh mr-1"></i>刷新列表
+          </button>
+          <button onclick="cleanExpired()" class="bg-danger text-white px-5 py-2 rounded-lg hover:bg-danger/90 transition-colors text-sm">
+            <i class="fa fa-trash mr-1"></i>清理过期文件
+          </button>
+        </div>
+
+        <div id="admin-stats" class="glass rounded-xl p-4 mb-6">
+          <div class="flex justify-around text-center">
+            <div>
+              <p class="text-2xl font-bold text-primary" id="stat-total">0</p>
+              <p class="text-xs text-gray-400">总文件数</p>
+            </div>
+            <div>
+              <p class="text-2xl font-bold text-warning" id="stat-expired">0</p>
+              <p class="text-xs text-gray-400">已过期</p>
+            </div>
+            <div>
+              <p class="text-2xl font-bold text-success" id="stat-active">0</p>
+              <p class="text-xs text-gray-400">有效文件</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="admin-images-loading" class="text-center py-12 hidden">
+          <i class="fa fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+          <p class="text-gray-400">加载中...</p>
+        </div>
+        <div id="admin-images-grid" class="space-y-3"></div>
+      </div>
     </div>
   </main>
 
-  <!-- 底部 -->
   <footer class="glass py-6 mt-12">
     <div class="max-w-4xl mx-auto px-4 text-center text-gray-400">
-      <p>Flyimg · 瞬图 — 基于 Cloudflare R2 构建</p>
+      <p>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
       <p>图片 <span id="footer-expire-hours">12</span> 小时后自动永久删除</p>
     </div>
   </footer>
 
-  <!-- 提示框 -->
   <div id="toast" class="fixed bottom-6 right-6 bg-dark-700 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
-    复制成功！
+  </div>
+
+  <div id="confirm-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden">
+    <div class="glass rounded-2xl p-8 max-w-sm mx-4">
+      <h3 class="text-lg font-semibold mb-4" id="confirm-title">确认操作</h3>
+      <p class="text-gray-400 mb-6" id="confirm-message"></p>
+      <div class="flex space-x-3">
+        <button onclick="confirmAction(false)" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">取消</button>
+        <button onclick="confirmAction(true)" class="flex-1 bg-danger text-white px-4 py-2 rounded-lg hover:bg-danger/90 transition-colors">确认</button>
+      </div>
+    </div>
   </div>
 
   <script>
+    let adminToken = '';
+    let currentUserTag = '';
+    let confirmCallback = null;
+
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('file-input');
     const uploadProgress = document.getElementById('upload-progress');
@@ -180,7 +263,6 @@
     const toast = document.getElementById('toast');
     const themeToggle = document.getElementById('theme-toggle');
 
-    // 初始化页面显示配置
     function initDisplayConfig() {
       document.getElementById('expire-hours-text').textContent = DISPLAY_CONFIG.expireHours;
       document.getElementById('allowed-types-text').textContent = DISPLAY_CONFIG.allowedTypesDisplay;
@@ -188,7 +270,6 @@
       document.getElementById('footer-expire-hours').textContent = DISPLAY_CONFIG.expireHours;
     }
 
-    // 主题切换
     function initTheme() {
       if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.classList.add('dark');
@@ -227,32 +308,122 @@
       }
     });
 
-    // 页面加载时初始化
-    document.addEventListener('DOMContentLoaded', () => {
-      initTheme();
-      initDisplayConfig();
-    });
+    function initRouter() {
+      const path = window.location.pathname.substring(1);
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokenParam = urlParams.get('token');
 
-    // 点击上传区域触发文件选择
-    uploadArea.addEventListener('click', () => {
-      fileInput.click();
-    });
-
-    // 文件选择变化
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
-        uploadFile(e.target.files[0]);
+      if (tokenParam) {
+        adminToken = tokenParam;
+        localStorage.setItem('adminToken', adminToken);
+        navigateTo('admin');
+        return;
       }
+
+      adminToken = localStorage.getItem('adminToken') || '';
+
+      if (path && path !== 'index.html' && !path.startsWith('api/') && !path.includes('.')) {
+        currentUserTag = decodeURIComponent(path);
+        document.getElementById('user-tag-input').value = currentUserTag;
+        navigateTo('my-images');
+        return;
+      }
+
+      const savedTag = localStorage.getItem('userTag');
+      if (savedTag) {
+        currentUserTag = savedTag;
+        document.getElementById('user-tag-input').value = savedTag;
+      }
+
+      updateNavButtons();
+    }
+
+    function navigateTo(page) {
+      document.getElementById('page-upload').classList.add('hidden');
+      document.getElementById('page-my-images').classList.add('hidden');
+      document.getElementById('page-admin').classList.add('hidden');
+
+      if (page === 'upload') {
+        document.getElementById('page-upload').classList.remove('hidden');
+      } else if (page === 'my-images') {
+        const tag = document.getElementById('user-tag-input').value.trim();
+        if (tag) {
+          currentUserTag = tag;
+          localStorage.setItem('userTag', tag);
+        }
+        if (!currentUserTag) {
+          showToast('请先输入标识Tag');
+          document.getElementById('user-tag-input').focus();
+          document.getElementById('page-upload').classList.remove('hidden');
+          return;
+        }
+        document.getElementById('page-my-images').classList.remove('hidden');
+        document.getElementById('my-tag-display').textContent = currentUserTag;
+        loadMyImages();
+      } else if (page === 'admin') {
+        document.getElementById('page-admin').classList.remove('hidden');
+        if (adminToken) {
+          showAdminPanel();
+        }
+      }
+
+      updateNavButtons();
+    }
+
+    function updateNavButtons() {
+      const myBtn = document.getElementById('nav-my');
+      const adminBtn = document.getElementById('nav-admin');
+
+      if (currentUserTag) {
+        myBtn.classList.remove('hidden');
+      }
+      if (adminToken) {
+        adminBtn.classList.remove('hidden');
+      }
+    }
+
+    async function computeMD5(file) {
+      return new Promise((resolve, reject) => {
+        const chunkSize = 2 * 1024 * 1024;
+        const chunks = Math.ceil(file.size / chunkSize);
+        let currentChunk = 0;
+        const spark = new SparkMD5.ArrayBuffer();
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+          spark.append(e.target.result);
+          currentChunk++;
+
+          if (currentChunk < chunks) {
+            loadNext();
+          } else {
+            resolve(spark.end());
+          }
+        };
+
+        reader.onerror = function() {
+          reject(new Error('文件读取失败'));
+        };
+
+        function loadNext() {
+          const start = currentChunk * chunkSize;
+          const end = Math.min(start + chunkSize, file.size);
+          reader.readAsArrayBuffer(file.slice(start, end));
+        }
+
+        loadNext();
+      });
+    }
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) uploadFile(e.target.files[0]);
     });
 
-    // 拖拽上传
     uploadArea.addEventListener('dragover', (e) => {
       e.preventDefault();
-      if (document.documentElement.classList.contains('dark')) {
-        uploadArea.classList.add('border-primary', 'bg-primary/10');
-      } else {
-        uploadArea.classList.add('border-primary', 'bg-primary/5');
-      }
+      uploadArea.classList.add('border-primary', 'bg-primary/10');
     });
 
     uploadArea.addEventListener('dragleave', () => {
@@ -262,58 +433,83 @@
     uploadArea.addEventListener('drop', (e) => {
       e.preventDefault();
       uploadArea.classList.remove('border-primary', 'bg-primary/10', 'bg-primary/5');
-      
-      if (e.dataTransfer.files.length > 0) {
-        uploadFile(e.dataTransfer.files[0]);
-      }
+      if (e.dataTransfer.files.length > 0) uploadFile(e.dataTransfer.files[0]);
     });
 
-    // 剪贴板粘贴上传
     document.addEventListener('paste', (e) => {
-      if (e.clipboardData.files.length > 0) {
-        uploadFile(e.clipboardData.files[0]);
-      }
+      if (e.clipboardData.files.length > 0) uploadFile(e.clipboardData.files[0]);
     });
 
-    // 上传文件
     async function uploadFile(file) {
       uploadArea.classList.add('hidden');
       uploadProgress.classList.remove('hidden');
       progressBar.style.width = '0%';
 
+      const md5Status = document.getElementById('md5-status');
+      const uploadStatusText = document.getElementById('upload-status-text');
+
       try {
+        uploadStatusText.textContent = '正在计算文件指纹...';
+        md5Status.classList.remove('hidden');
+        progressBar.style.width = '10%';
+
+        const md5Hash = await computeMD5(file);
+
+        uploadStatusText.textContent = '正在上传...';
+        md5Status.classList.add('hidden');
+        progressBar.style.width = '20%';
+
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('md5', md5Hash);
+
+        const userTag = document.getElementById('user-tag-input').value.trim();
+        if (userTag) {
+          formData.append('user_tag', userTag);
+          currentUserTag = userTag;
+          localStorage.setItem('userTag', userTag);
+          updateNavButtons();
+        }
 
         const xhr = new XMLHttpRequest();
-        
+
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
-            const percent = (e.loaded / e.total) * 100;
+            const percent = 20 + (e.loaded / e.total) * 70;
             progressBar.style.width = `${percent}%`;
           }
         });
 
         xhr.addEventListener('load', () => {
+          progressBar.style.width = '100%';
+
           if (xhr.status === 200) {
             const result = JSON.parse(xhr.responseText);
-            
+
             uploadProgress.classList.add('hidden');
             uploadResult.classList.remove('hidden');
-            
+
             previewImage.src = result.url;
             directLink.value = result.url;
             markdownLink.value = result.markdown;
             htmlLink.value = result.html;
-            
+
             const expireDate = new Date(result.expireAt);
             const hoursLeft = Math.round((expireDate - Date.now()) / (1000 * 60 * 60));
             expireTime.textContent = `${hoursLeft}小时后过期`;
-            
-            showToast('上传成功！');
+
+            if (result.cached) {
+              showToast('文件已存在，直接返回链接！');
+            } else {
+              showToast('上传成功！');
+            }
           } else {
-            const error = JSON.parse(xhr.responseText);
-            showToast(error.error || '上传失败');
+            try {
+              const error = JSON.parse(xhr.responseText);
+              showToast(error.error || '上传失败');
+            } catch {
+              showToast('上传失败');
+            }
             resetUpload();
           }
         });
@@ -333,15 +529,229 @@
       }
     }
 
-    // 复制链接
+    async function loadMyImages() {
+      const loading = document.getElementById('my-images-loading');
+      const empty = document.getElementById('my-images-empty');
+      const grid = document.getElementById('my-images-grid');
+
+      loading.classList.remove('hidden');
+      empty.classList.add('hidden');
+      grid.innerHTML = '';
+
+      try {
+        const resp = await fetch(`${API_BASE}/my-images?user_tag=${encodeURIComponent(currentUserTag)}`);
+        const data = await resp.json();
+
+        loading.classList.add('hidden');
+
+        if (!data.images || data.images.length === 0) {
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        data.images.forEach(img => {
+          grid.appendChild(createImageCard(img, false));
+        });
+      } catch (error) {
+        loading.classList.add('hidden');
+        showToast('加载图片列表失败');
+      }
+    }
+
+    function createImageCard(img, isAdmin) {
+      const card = document.createElement('div');
+      card.className = `glass rounded-xl overflow-hidden ${img.expired ? 'border-2 border-danger' : ''}`;
+
+      const expireDate = new Date(img.expire_at);
+      const createdDate = new Date(img.created_at);
+      const isExpired = img.expired;
+      const timeLeft = isExpired ? '已过期' : `${Math.round((expireDate - Date.now()) / (1000 * 60 * 60))}小时后过期`;
+
+      card.innerHTML = `
+        <div class="relative">
+          <img src="${img.url}" alt="图片" class="w-full h-40 object-cover ${isExpired ? 'opacity-50' : ''}" loading="lazy">
+          ${isExpired ? '<span class="absolute top-2 right-2 bg-danger text-white text-xs px-2 py-1 rounded">已过期</span>' : ''}
+        </div>
+        <div class="p-3">
+          <p class="text-xs text-gray-400 mb-1">${formatDate(createdDate)}</p>
+          <p class="text-xs ${isExpired ? 'text-danger' : 'text-gray-500'}">${timeLeft}</p>
+          <p class="text-xs text-gray-500 mt-1">${formatBytes(img.size)}</p>
+          ${isAdmin ? `
+            <div class="flex space-x-2 mt-2">
+              <button onclick="deleteFile('${img.filename}')" class="flex-1 bg-danger/20 text-danger text-xs px-2 py-1 rounded hover:bg-danger/30 transition-colors">
+                <i class="fa fa-trash mr-1"></i>删除
+              </button>
+              <button onclick="copyToClipboard('${img.url}')" class="flex-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors">
+                <i class="fa fa-copy mr-1"></i>复制链接
+              </button>
+            </div>
+          ` : `
+            <button onclick="copyToClipboard('${img.url}')" class="mt-2 w-full bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors">
+              <i class="fa fa-copy mr-1"></i>复制链接
+            </button>
+          `}
+        </div>
+      `;
+
+      return card;
+    }
+
+    function adminLogin() {
+      const input = document.getElementById('admin-token-input');
+      const token = input.value.trim();
+      if (!token) {
+        showToast('请输入管理密钥');
+        return;
+      }
+      adminToken = token;
+      localStorage.setItem('adminToken', adminToken);
+      showAdminPanel();
+      updateNavButtons();
+      showToast('登录成功');
+    }
+
+    function showAdminPanel() {
+      document.getElementById('admin-login').classList.add('hidden');
+      document.getElementById('admin-panel').classList.remove('hidden');
+      loadAllImages();
+    }
+
+    async function loadAllImages() {
+      const loading = document.getElementById('admin-images-loading');
+      const grid = document.getElementById('admin-images-grid');
+
+      loading.classList.remove('hidden');
+      grid.innerHTML = '';
+
+      try {
+        const resp = await fetch(`${API_BASE}/all-images`, {
+          headers: { 'X-Cron-Secret': adminToken }
+        });
+
+        if (resp.status === 401) {
+          adminToken = '';
+          localStorage.removeItem('adminToken');
+          document.getElementById('admin-login').classList.remove('hidden');
+          document.getElementById('admin-panel').classList.add('hidden');
+          showToast('密钥无效，请重新登录');
+          return;
+        }
+
+        const data = await resp.json();
+        loading.classList.add('hidden');
+
+        let expiredCount = 0;
+        let activeCount = 0;
+
+        if (data.images && data.images.length > 0) {
+          data.images.forEach(img => {
+            if (img.expired) expiredCount++;
+            else activeCount++;
+
+            const row = document.createElement('div');
+            row.className = `glass rounded-xl p-4 flex items-center space-x-4 ${img.expired ? 'border-l-4 border-danger' : 'border-l-4 border-success'}`;
+
+            const expireDate = new Date(img.expire_at);
+            const createdDate = new Date(img.created_at);
+            const timeLeft = img.expired ? '已过期' : `${Math.round((expireDate - Date.now()) / (1000 * 60 * 60))}小时后过期`;
+
+            row.innerHTML = `
+              <img src="${img.url}" alt="图片" class="w-16 h-16 object-cover rounded-lg ${img.expired ? 'opacity-50' : ''}" loading="lazy">
+              <div class="flex-grow min-w-0">
+                <p class="text-sm font-mono truncate text-gray-300">${img.filename}</p>
+                <p class="text-xs text-gray-500">Tag: ${img.user_tag} · ${formatBytes(img.size)} · ${formatDate(createdDate)}</p>
+                <p class="text-xs ${img.expired ? 'text-danger' : 'text-success'}">${timeLeft}</p>
+              </div>
+              <button onclick="deleteFile('${img.filename}')" class="bg-danger/20 text-danger px-3 py-2 rounded-lg hover:bg-danger/30 transition-colors text-sm flex-shrink-0">
+                <i class="fa fa-trash"></i>
+              </button>
+            `;
+
+            grid.appendChild(row);
+          });
+        }
+
+        document.getElementById('stat-total').textContent = data.images ? data.images.length : 0;
+        document.getElementById('stat-expired').textContent = expiredCount;
+        document.getElementById('stat-active').textContent = activeCount;
+
+      } catch (error) {
+        loading.classList.add('hidden');
+        showToast('加载失败');
+      }
+    }
+
+    function deleteFile(filename) {
+      showConfirm('删除文件', `确定要删除 ${filename} 吗？此操作不可恢复。`, async (confirmed) => {
+        if (!confirmed) return;
+
+        try {
+          const resp = await fetch(`${API_BASE}/delete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Cron-Secret': adminToken
+            },
+            body: JSON.stringify({ filename })
+          });
+
+          const data = await resp.json();
+          if (data.success) {
+            showToast('删除成功');
+            loadAllImages();
+          } else {
+            showToast(data.error || '删除失败');
+          }
+        } catch (error) {
+          showToast('删除失败');
+        }
+      });
+    }
+
+    async function cleanExpired() {
+      showConfirm('清理过期文件', '确定要清理所有过期文件吗？此操作不可恢复。', async (confirmed) => {
+        if (!confirmed) return;
+
+        try {
+          const resp = await fetch(`${API_BASE}/clean`, {
+            method: 'POST',
+            headers: { 'X-Cron-Secret': adminToken }
+          });
+
+          const data = await resp.json();
+          if (data.success) {
+            showToast(data.message);
+            loadAllImages();
+          } else {
+            showToast(data.error || '清理失败');
+          }
+        } catch (error) {
+          showToast('清理失败');
+        }
+      });
+    }
+
+    function showConfirm(title, message, callback) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-message').textContent = message;
+      document.getElementById('confirm-modal').classList.remove('hidden');
+      confirmCallback = callback;
+    }
+
+    function confirmAction(result) {
+      document.getElementById('confirm-modal').classList.add('hidden');
+      if (confirmCallback) {
+        confirmCallback(result);
+        confirmCallback = null;
+      }
+    }
+
     async function copyLink(inputId) {
       const input = document.getElementById(inputId);
-      const text = input.value;
-      
       try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(input.value);
         showToast('复制成功！');
-      } catch (err) {
+      } catch {
         input.select();
         input.setSelectionRange(0, 99999);
         document.execCommand('copy');
@@ -349,7 +759,15 @@
       }
     }
 
-    // 重置上传
+    async function copyToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('复制成功！');
+      } catch {
+        showToast('复制失败');
+      }
+    }
+
     function resetUpload() {
       uploadProgress.classList.add('hidden');
       uploadResult.classList.add('hidden');
@@ -357,15 +775,36 @@
       fileInput.value = '';
     }
 
-    // 显示提示框
     function showToast(message) {
       toast.textContent = message;
       toast.classList.remove('translate-y-20', 'opacity-0');
-      
       setTimeout(() => {
         toast.classList.add('translate-y-20', 'opacity-0');
       }, 2500);
     }
+
+    function formatDate(date) {
+      const d = new Date(date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      initDisplayConfig();
+      initRouter();
+    });
+
+    // SparkMD5 - Lightweight MD5 implementation
+    // https://github.com/nickelc/spark-md5
+    (function(factory){if(typeof exports==="object"){module.exports=factory()}else{window.SparkMD5=factory()}})(function(){"use strict";var hex_chr=["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"];function md5cycle(x,k){var a=x[0],b=x[1],c=x[2],d=x[3];a+=(b&c|~b&d)+k[0]-680876936|0;a=(a<<7|a>>>25)+b|0;d+=(a&b|~a&c)+k[1]-389564586|0;d=(d<<12|d>>>20)+a|0;c+=(d&a|~d&b)+k[2]+606105819|0;c=(c<<17|c>>>15)+d|0;b+=(c&d|~c&a)+k[3]-1044525330|0;b=(b<<22|b>>>10)+c|0;a+=(b&c|~b&d)+k[4]-176418897|0;a=(a<<7|a>>>25)+b|0;d+=(a&b|~a&c)+k[5]+1200080426|0;d=(d<<12|d>>>20)+a|0;c+=(d&a|~d&b)+k[6]-1473231341|0;c=(c<<17|c>>>15)+d|0;b+=(c&d|~c&a)+k[7]-45705983|0;b=(b<<22|b>>>10)+c|0;a+=(b&c|~b&d)+k[8]+1770035416|0;a=(a<<7|a>>>25)+b|0;d+=(a&b|~a&c)+k[9]-1958414417|0;d=(d<<12|d>>>20)+a|0;c+=(d&a|~d&b)+k[10]-42063|0;c=(c<<17|c>>>15)+d|0;b+=(c&d|~c&a)+k[11]-1990404162|0;b=(b<<22|b>>>10)+c|0;a+=(b&c|~b&d)+k[12]+1804603682|0;a=(a<<7|a>>>25)+b|0;d+=(a&b|~a&c)+k[13]-40341101|0;d=(d<<12|d>>>20)+a|0;c+=(d&a|~d&b)+k[14]-1502002290|0;c=(c<<17|c>>>15)+d|0;b+=(c&d|~c&a)+k[15]+1236535329|0;b=(b<<22|b>>>10)+c|0;a+=(b&d|c&~d)+k[1]-165796510|0;a=(a<<5|a>>>27)+b|0;d+=(a&c|b&~c)+k[6]-1069501632|0;d=(d<<9|d>>>23)+a|0;c+=(d&b|a&~b)+k[11]+643717713|0;c=(c<<14|c>>>18)+d|0;b+=(c&a|d&~a)+k[0]-373897302|0;b=(b<<20|b>>>12)+c|0;a+=(b&d|c&~d)+k[5]-701558691|0;a=(a<<5|a>>>27)+b|0;d+=(a&c|b&~c)+k[10]+38016083|0;d=(d<<9|d>>>23)+a|0;c+=(d&b|a&~b)+k[15]-660478335|0;c=(c<<14|c>>>18)+d|0;b+=(c&a|d&~a)+k[4]-405537848|0;b=(b<<20|b>>>12)+c|0;a+=(b&d|c&~d)+k[9]+568446438|0;a=(a<<5|a>>>27)+b|0;d+=(a&c|b&~c)+k[14]-1019803690|0;d=(d<<9|d>>>23)+a|0;c+=(d&b|a&~b)+k[3]-187363961|0;c=(c<<14|c>>>18)+d|0;b+=(c&a|d&~a)+k[8]+1163531501|0;b=(b<<20|b>>>12)+c|0;a+=(b&d|c&~d)+k[13]-1444681467|0;a=(a<<5|a>>>27)+b|0;d+=(a&c|b&~c)+k[2]-51403784|0;d=(d<<9|d>>>23)+a|0;c+=(d&b|a&~b)+k[7]+1735328473|0;c=(c<<14|c>>>18)+d|0;b+=(c&a|d&~a)+k[12]-1926607734|0;b=(b<<20|b>>>12)+c|0;a+=(b^c^d)+k[5]-378558|0;a=(a<<4|a>>>28)+b|0;d+=(a^b^c)+k[8]-2022574463|0;d=(d<<11|d>>>21)+a|0;c+=(d^a^b)+k[11]+1839030562|0;c=(c<<16|c>>>16)+d|0;b+=(c^d^a)+k[14]-35309556|0;b=(b<<23|b>>>9)+c|0;a+=(b^c^d)+k[1]-1530992060|0;a=(a<<4|a>>>28)+b|0;d+=(a^b^c)+k[4]+1272893353|0;d=(d<<11|d>>>21)+a|0;c+=(d^a^b)+k[7]-155497632|0;c=(c<<16|c>>>16)+d|0;b+=(c^d^a)+k[10]-1094730640|0;b=(b<<23|b>>>9)+c|0;a+=(b^c^d)+k[13]+681279174|0;a=(a<<4|a>>>28)+b|0;d+=(a^b^c)+k[0]-358537222|0;d=(d<<11|d>>>21)+a|0;c+=(d^a^b)+k[3]-722521979|0;c=(c<<16|c>>>16)+d|0;b+=(c^d^a)+k[6]+76029189|0;b=(b<<23|b>>>9)+c|0;a+=(b^c^d)+k[9]-640364487|0;a=(a<<4|a>>>28)+b|0;d+=(a^b^c)+k[12]-421815835|0;d=(d<<11|d>>>21)+a|0;c+=(d^a^b)+k[15]+530742520|0;c=(c<<16|c>>>16)+d|0;b+=(c^d^a)+k[2]-995338651|0;b=(b<<23|b>>>9)+c|0;a+=(c^(b|~d))+k[0]-198630844|0;a=(a<<6|a>>>26)+b|0;d+=(b^(a|~c))+k[7]+1126891415|0;d=(d<<10|d>>>22)+a|0;c+=(a^(d|~b))+k[14]-1416354905|0;c=(c<<15|c>>>17)+d|0;b+=(d^(c|~a))+k[5]-57434055|0;b=(b<<21|b>>>11)+c|0;a+=(c^(b|~d))+k[12]+1700485571|0;a=(a<<6|a>>>26)+b|0;d+=(b^(a|~c))+k[3]-1894986606|0;d=(d<<10|d>>>22)+a|0;c+=(a^(d|~b))+k[10]-1051523|0;c=(c<<15|c>>>17)+d|0;b+=(d^(c|~a))+k[1]-2054922799|0;b=(b<<21|b>>>11)+c|0;a+=(c^(b|~d))+k[8]+1873313359|0;a=(a<<6|a>>>26)+b|0;d+=(b^(a|~c))+k[15]-30611744|0;d=(d<<10|d>>>22)+a|0;c+=(a^(d|~b))+k[6]-1560198380|0;c=(c<<15|c>>>17)+d|0;b+=(d^(c|~a))+k[13]+1309151649|0;b=(b<<21|b>>>11)+c|0;a+=(c^(b|~d))+k[4]-145523070|0;a=(a<<6|a>>>26)+b|0;d+=(b^(a|~c))+k[11]-1120210379|0;d=(d<<10|d>>>22)+a|0;c+=(a^(d|~b))+k[2]+718787259|0;c=(c<<15|c>>>17)+d|0;b+=(d^(c|~a))+k[9]-343485551|0;b=(b<<21|b>>>11)+c|0;x[0]=a+x[0]|0;x[1]=b+x[1]|0;x[2]=c+x[2]|0;x[3]=d+x[3]|0}function md5blk(s){var md5blks=[],i;for(i=0;i<64;i+=4){md5blks[i>>2]=s.charCodeAt(i)+(s.charCodeAt(i+1)<<8)+(s.charCodeAt(i+2)<<16)+(s.charCodeAt(i+3)<<24)}return md5blks}function md5blk_array(a){var md5blks=[],i;for(i=0;i<64;i+=4){md5blks[i>>2]=a[i]+(a[i+1]<<8)+(a[i+2]<<16)+(a[i+3]<<24)}return md5blks}function rhex(n){var s="",j;for(j=0;j<4;j++){s+=hex_chr[n>>j*8+4&15]+hex_chr[n>>j*8&15]}return s}function hex(x){for(var i=0;i<x.length;i++){x[i]=rhex(x[i])}return x.join("")}function SparkMD5(){this.reset()}SparkMD5.prototype.append=function(str){if(/[\u0080-\uFFFF]/.test(str)){str=unescape(encodeURIComponent(str))}this.appendBinary(str);return this};SparkMD5.prototype.appendBinary=function(content){this._buff+=content;this._length+=content.length;var length=this._buff.length,i;for(i=64;i<=length;i+=64){md5cycle(this._hash,md5blk(this._buff.substring(i-64,i)))}this._buff=this._buff.substring(i-64);return this};SparkMD5.prototype.end=function(raw){var buff=this._buff,length=buff.length,i,tail=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],ret;for(i=0;i<length;i++){tail[i>>2]|=buff.charCodeAt(i)<<(i%4<<3)}tail[i>>2]|=128<<(i%4<<3);if(i>55){md5cycle(this._hash,tail);for(i=0;i<16;i++){tail[i]=0}}tail[14]=this._length*8;md5cycle(this._hash,tail);ret=hex(this._hash);if(raw){ret=hexToBinaryString(ret)}this.reset();return ret};SparkMD5.prototype.reset=function(){this._buff="";this._length=0;this._hash=[1732584193,-271733879,-1732584194,271733878];return this};SparkMD5.prototype.getState=function(){return{buff:this._buff,length:this._length,hash:this._hash.slice()}};SparkMD5.prototype.setState=function(state){this._buff=state.buff;this._length=state.length;this._hash=state.hash;return this};SparkMD5.prototype.destroy=function(){delete this._hash;delete this._buff;delete this._length};SparkMD5.hash=function(str,raw){return SparkMD5.hashBinary(unescape(encodeURIComponent(str)),raw)};SparkMD5.hashBinary=function(content,raw){var hash=md51(content),ret=hex(hash);return raw?hexToBinaryString(ret):ret};function md51(s){var n=s.length,state=[1732584193,-271733879,-1732584194,271733878],i,length,tail,tmp,lo,hi;for(i=64;i<=n;i+=64){md5cycle(state,md5blk(s.substring(i-64,i)))}s=s.substring(i-64);length=s.length;tail=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];for(i=0;i<length;i++){tail[i>>2]|=s.charCodeAt(i)<<(i%4<<3)}tail[i>>2]|=128<<(i%4<<3);if(i>55){md5cycle(state,tail);for(i=0;i<16;i++){tail[i]=0}}tmp=n*8;tmp=tmp.toString(16).match(/(.*?)(.{0,8})$/);lo=parseInt(tmp[2],16);hi=parseInt(tmp[1],16)||0;tail[14]=lo;tail[15]=hi;md5cycle(state,tail);return state}function hexToBinaryString(hex){var bytes=[],length=hex.length,x;for(x=0;x<length-1;x+=2){bytes.push(parseInt(hex.substr(x,2),16))}return String.fromCharCode.apply(String,bytes)}SparkMD5.ArrayBuffer=function(){this.reset()};SparkMD5.ArrayBuffer.prototype.append=function(arr){var buff=concatenateArrayBuffers(this._buff.buffer,arr),length=buff.length,i;if(length>64){this._hash=md51_array(buff.subarray(0,64));for(i=64;i<length;i+=64){md5cycle(this._hash,md5blk_array(buff.subarray(i,i+64)))}this._buff=i<length?new Uint8Array(buff.buffer.slice(i-64)):new Uint8Array(0)}else{this._buff=buff}this._length+=arr.length;return this};SparkMD5.ArrayBuffer.prototype.end=function(raw){var buff=this._buff,length=buff.length,tail=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],i,ret;for(i=0;i<length;i++){tail[i>>2]|=buff[i]<<(i%4<<3)}tail[i>>2]|=128<<(i%4<<3);if(i>55){md5cycle(this._hash,tail);for(i=0;i<16;i++){tail[i]=0}}var tmp=this._length*8;var tmp2=tmp.toString(16).match(/(.*?)(.{0,8})$/);var lo=parseInt(tmp2[2],16);var hi=parseInt(tmp2[1],16)||0;tail[14]=lo;tail[15]=hi;md5cycle(this._hash,tail);ret=hex(this._hash);if(raw){ret=hexToBinaryString(ret)}this.reset();return ret};SparkMD5.ArrayBuffer.prototype.reset=function(){this._buff=new Uint8Array(0);this._length=0;this._hash=[1732584193,-271733879,-1732584194,271733878];return this};SparkMD5.ArrayBuffer.prototype.getState=function(){var state=SparkMD5.prototype.getState.call(this);state.buff=uint8ToBase64(state.buff);return state};SparkMD5.ArrayBuffer.prototype.setState=function(state){state.buff=base64ToUint8(state.buff);return SparkMD5.prototype.setState.call(this,state)};SparkMD5.ArrayBuffer.prototype.destroy=SparkMD5.prototype.destroy;SparkMD5.ArrayBuffer.hash=function(arr,raw){var hash=md51_array(new Uint8Array(arr)),ret=hex(hash);return raw?hexToBinaryString(ret):ret};function md51_array(a){var n=a.length,state=[1732584193,-271733879,-1732584194,271733878],i,tail,tmp,lo,hi;for(i=64;i<=n;i+=64){md5cycle(state,md5blk_array(a.subarray(i-64,i)))}a=i-64<n?a.subarray(i-64):new Uint8Array(0);var length=a.length;tail=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];for(i=0;i<length;i++){tail[i>>2]|=a[i]<<(i%4<<3)}tail[i>>2]|=128<<(i%4<<3);if(i>55){md5cycle(state,tail);for(i=0;i<16;i++){tail[i]=0}}tmp=n*8;tmp=tmp.toString(16).match(/(.*?)(.{0,8})$/);lo=parseInt(tmp[2],16);hi=parseInt(tmp[1],16)||0;tail[14]=lo;tail[15]=hi;md5cycle(state,tail);return state}function concatenateArrayBuffers(first,second){var result=new Uint8Array(first.length+second.length);result.set(first);result.set(second,first.length);return result}function uint8ToBase64(u8){var data="";for(var i=0;i<u8.length;i++){data+=String.fromCharCode(u8[i])}return btoa(data)}function base64ToUint8(b64){var data=atob(b64);var u8=new Uint8Array(data.length);for(var i=0;i<data.length;i++){u8[i]=data.charCodeAt(i)}return u8}return SparkMD5});
   </script>
 </body>
 </html>
