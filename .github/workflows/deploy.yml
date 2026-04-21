@@ -145,10 +145,12 @@ jobs:
           echo "✅ Worker secrets configured"
 
       - name: 🌐 Configure Worker Custom Domain
-        if: ${{ secrets.WORKER_CUSTOM_DOMAIN != '' }}
         run: |
           CUSTOM_DOMAIN="${{ secrets.WORKER_CUSTOM_DOMAIN }}"
-          echo "Configuring custom domain: $CUSTOM_DOMAIN"
+          if [ -z "$CUSTOM_DOMAIN" ]; then
+            echo "No custom domain configured, skipping"
+            exit 0
+          fi
 
           DOMAINS=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result[] | select(.hostname=="'"$CUSTOM_DOMAIN"'") | .id' || true)
