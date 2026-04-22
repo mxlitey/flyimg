@@ -147,14 +147,17 @@ jobs:
 
           EXPIRE_HOURS="${{ secrets.EXPIRE_HOURS }}"
           MAX_FILE_SIZE="${{ secrets.MAX_FILE_SIZE }}"
+          MAX_STORAGE_SIZE="${{ secrets.MAX_STORAGE_SIZE }}"
           EXPIRE_HOURS_VAL="${EXPIRE_HOURS:-12}"
           MAX_FILE_SIZE_VAL="${MAX_FILE_SIZE:-20}"
+          MAX_STORAGE_SIZE_VAL="${MAX_STORAGE_SIZE:-1000}"
 
           cat > frontend/config.js << CONFIGEOF
           const API_BASE = '${WORKER_URL}';
           const DISPLAY_CONFIG = {
             expireHours: ${EXPIRE_HOURS_VAL},
             maxFileSizeMB: ${MAX_FILE_SIZE_VAL},
+            maxStorageSizeMB: ${MAX_STORAGE_SIZE_VAL},
             allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG',
           };
           CONFIGEOF
