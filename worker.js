@@ -96,50 +96,41 @@ export default {
         const fileName = md5Hash ? `${md5Hash}.${ext}` : `${timestamp}-${randomStr}.${ext}`;
 
         if (md5Hash) {
-          const existingRecords = await env.DB.prepare(
-            'SELECT url, expire_at, user_tag FROM images WHERE filename = ?'
-          ).bind(fileName).all();
+          const now = new Date().toISOString();
 
-          if (existingRecords.results && existingRecords.results.length > 0) {
-            const existing = existingRecords.results[0];
-            const expireAt = new Date(existing.expire_at).getTime();
+          const existingFile = await env.DB.prepare(
+            'SELECT url, size FROM images WHERE filename = ? AND expire_at > ? LIMIT 1'
+          ).bind(fileName, now).first();
 
-            const userAlreadyLinked = existingRecords.results.some(r => r.user_tag === userTag);
+          if (existingFile) {
+            const newExpireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
+            const newExpireAtISO = new Date(newExpireAt).toISOString();
 
-            if (Date.now() < expireAt) {
-              const newExpireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
-              const newExpireAtISO = new Date(newExpireAt).toISOString();
+            await env.DB.prepare(
+              'INSERT INTO images (filename, url, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(filename, user_tag) DO UPDATE SET expire_at = excluded.expire_at'
+            ).bind(
+              fileName,
+              existingFile.url,
+              existingFile.size,
+              userTag,
+              newExpireAtISO,
+              new Date(timestamp).toISOString()
+            ).run();
 
-              await env.DB.prepare(
-                'UPDATE images SET expire_at = ? WHERE filename = ?'
-              ).bind(newExpireAtISO, fileName).run();
-
-              if (!userAlreadyLinked) {
-                await env.DB.prepare(
-                  'INSERT INTO images (filename, url, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-                ).bind(
-                  fileName,
-                  existing.url,
-                  0,
-                  userTag,
-                  newExpireAtISO,
-                  new Date(timestamp).toISOString()
-                ).run();
-              }
-
-              return jsonResponse({
-                success: true,
-                url: existing.url,
-                markdown: `![图片](${existing.url})`,
-                html: `<img src="${existing.url}" alt="flyimg">`,
-                expireAt: newExpireAtISO,
-                expireHours: CONFIG.EXPIRE_HOURS,
-                cached: true
-              });
-            } else {
-              await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(fileName).run();
-            }
+            return jsonResponse({
+              success: true,
+              url: existingFile.url,
+              markdown: `![图片](${existingFile.url})`,
+              html: `<img src="${existingFile.url}" alt="flyimg">`,
+              expireAt: newExpireAtISO,
+              expireHours: CONFIG.EXPIRE_HOURS,
+              cached: true
+            });
           }
+
+          await env.DB.prepare(
+            'DELETE FROM images WHERE filename = ? AND expire_at <= ?'
+          ).bind(fileName, now).run();
         }
 
         const expireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
@@ -248,15 +239,15 @@ export default {
           return jsonResponse({ error: '缺少filename参数' }, 400);
         }
 
-        const remaining = await env.DB.prepare(
-          'SELECT filename FROM images WHERE filename = ?'
-        ).bind(filename).all();
+        await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(filename).run();
 
-        if (remaining.results.length <= 1) {
+        const anyRemaining = await env.DB.prepare(
+          'SELECT id FROM images WHERE filename = ? LIMIT 1'
+        ).bind(filename).first();
+
+        if (!anyRemaining) {
           await env.R2_BUCKET.delete(filename);
         }
-
-        await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(filename).run();
 
         return jsonResponse({
           success: true,
@@ -337,27 +328,40 @@ function getFileExtension(mimeType) {
 
 async function cleanupExpiredFiles(env) {
   const now = new Date().toISOString();
+
   const { results } = await env.DB.prepare(
     'SELECT DISTINCT filename FROM images WHERE expire_at <= ?'
   ).bind(now).all();
 
   if (results.length === 0) return 0;
 
-  const filenames = results.map(r => r.filename);
+  const filenamesToDelete = [];
 
-  await Promise.all(filenames.map(key => env.R2_BUCKET.delete(key)));
+  for (const r of results) {
+    const activeRecord = await env.DB.prepare(
+      'SELECT id FROM images WHERE filename = ? AND expire_at > ? LIMIT 1'
+    ).bind(r.filename, now).first();
+
+    if (!activeRecord) {
+      filenamesToDelete.push(r.filename);
+    }
+  }
 
   await env.DB.prepare(
     'DELETE FROM images WHERE expire_at <= ?'
   ).bind(now).run();
 
-  return filenames.length;
+  if (filenamesToDelete.length > 0) {
+    await Promise.all(filenamesToDelete.map(key => env.R2_BUCKET.delete(key)));
+  }
+
+  return filenamesToDelete.length;
 }
 
 async function getStorageInfo(db) {
   const now = new Date().toISOString();
   const result = await db.prepare(
-    'SELECT COUNT(*) as totalFiles, COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
+    'SELECT COUNT(*) as totalFiles, COALESCE(SUM(size), 0) as totalSize FROM (SELECT filename, MAX(size) as size FROM images WHERE expire_at > ? GROUP BY filename)'
   ).bind(now).first();
 
   return {

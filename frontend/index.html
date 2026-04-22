@@ -426,15 +426,20 @@
     }
 
     async function computeMD5(file) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = function(e) {
-          const spark = new SparkMD5.ArrayBuffer();
-          spark.append(e.target.result);
-          resolve(spark.end());
+          try {
+            const hash = SparkMD5.ArrayBuffer.hash(e.target.result);
+            resolve(hash);
+          } catch (err) {
+            console.error('MD5计算失败:', err);
+            resolve(null);
+          }
         };
         reader.onerror = function() {
-          reject(new Error('文件读取失败'));
+          console.error('文件读取失败');
+          resolve(null);
         };
         reader.readAsArrayBuffer(file);
       });
@@ -486,7 +491,9 @@
 
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('md5', md5Hash);
+        if (md5Hash) {
+          formData.append('md5', md5Hash);
+        }
 
         const userTag = document.getElementById('user-tag-input').value.trim() || 'default';
         formData.append('user_tag', userTag);
