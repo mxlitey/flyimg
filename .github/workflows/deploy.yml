@@ -34,7 +34,6 @@ jobs:
           if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then MISSING+=("CLOUDFLARE_ACCOUNT_ID"); fi
           if [ -z "${{ secrets.R2_PUBLIC_DOMAIN }}" ]; then MISSING+=("R2_PUBLIC_DOMAIN"); fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then MISSING+=("CRON_SECRET"); fi
-          if [ -z "${{ secrets.WORKER_URL }}" ]; then MISSING+=("WORKER_URL"); fi
 
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "❌ Missing required GitHub Secrets:"
@@ -209,9 +208,10 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
 
             echo "### 📌 Next Steps" >> $GITHUB_STEP_SUMMARY
-            echo "1. Visit the frontend URL to start using the service" >> $GITHUB_STEP_SUMMARY
-            echo "2. Access admin panel by adding \`?token=YOUR_CRON_SECRET\` to the frontend URL" >> $GITHUB_STEP_SUMMARY
-            echo "3. Configure Cloudflare Rate Limiting in WAF settings (see README)" >> $GITHUB_STEP_SUMMARY
+            echo "1. Go to Cloudflare Dashboard → Workers → flyimg-worker → copy the Worker URL" >> $GITHUB_STEP_SUMMARY
+            echo "2. Update GitHub Secret \`WORKER_URL\` with the actual Worker URL" >> $GITHUB_STEP_SUMMARY
+            echo "3. Re-run this workflow to apply the correct frontend config" >> $GITHUB_STEP_SUMMARY
+            echo "4. Visit the frontend URL to start using the service" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Deployment failed.** Check the logs above for details." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

@@ -74,7 +74,7 @@
             <i class="fa fa-cloud-upload sm:mr-1"></i><span class="hidden sm:inline">上传</span>
           </button>
           <button id="nav-my" onclick="navigateTo('my-images')" class="px-2 sm:px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm hidden">
-            <svg class="w-4 h-4 sm:mr-1 inline-block align-middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span class="hidden sm:inline">我的文件</span>
+            <i class="fa fa-inbox sm:mr-1"></i><span class="hidden sm:inline">我的上传</span>
           </button>
           <button id="nav-admin" onclick="navigateTo('admin')" class="px-2 sm:px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
             <i class="fa fa-shield sm:mr-1"></i><span class="hidden sm:inline">管理</span>
@@ -172,7 +172,7 @@
 
     <div id="page-my-images" class="hidden">
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold mb-2">我的文件</h1>
+        <h1 class="text-3xl font-bold mb-2">我的上传</h1>
         <p class="text-gray-400">用户名：<span id="my-tag-display" class="text-primary font-mono"></span></p>
       </div>
       <div id="my-images-loading" class="text-center py-12 hidden">
@@ -180,7 +180,7 @@
         <p class="text-gray-400">加载中...</p>
       </div>
       <div id="my-images-empty" class="text-center py-12 hidden">
-        <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+        <i class="fa fa-inbox text-6xl text-gray-600 mb-4"></i>
         <p class="text-gray-400 text-lg">暂无文件</p>
         <button onclick="navigateTo('upload')" class="mt-4 bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">去上传</button>
       </div>
@@ -769,9 +769,6 @@
       document.getElementById('stat-total').textContent = adminAllImages.length;
       document.getElementById('stat-expired').textContent = expiredCount;
       document.getElementById('stat-active').textContent = activeCount;
-
-      const maxStorageMB = DISPLAY_CONFIG.maxFileSizeMB || 20;
-      const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
       document.getElementById('stat-used-space').textContent = formatBytes(totalSize);
       document.getElementById('stat-total-space').textContent = `${DISPLAY_CONFIG.maxStorageSizeMB || 1000} MB`;
     }
@@ -892,30 +889,27 @@
     }
 
     function deleteFile(filename) {
-      showConfirm('删除文件', `确定要删除 ${filename} 吗？此操作不可恢复。`, async (confirmed) => {
-        if (!confirmed) return;
-
-        try {
-          const resp = await fetch(`${API_BASE}/delete`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Cron-Secret': adminToken
-            },
-            body: JSON.stringify({ filename })
-          });
-
-          const data = await resp.json();
+      try {
+        fetch(`${API_BASE}/delete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Cron-Secret': adminToken
+          },
+          body: JSON.stringify({ filename })
+        }).then(resp => resp.json()).then(data => {
           if (data.success) {
             showToast('删除成功');
             loadAllImages();
           } else {
             showToast(data.error || '删除失败');
           }
-        } catch (error) {
+        }).catch(() => {
           showToast('删除失败');
-        }
-      });
+        });
+      } catch (error) {
+        showToast('删除失败');
+      }
     }
 
     async function cleanExpired() {

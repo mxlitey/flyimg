@@ -1,3 +1,22 @@
+const MIME_TO_EXT = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/x-icon': 'ico',
+  'image/bmp': 'bmp',
+  'audio/mpeg': 'mp3',
+  'audio/wav': 'wav',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'aac',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+  'video/x-msvideo': 'avi'
+};
+
 export default {
   async fetch(request, env, ctx) {
     const CONFIG = {
@@ -60,8 +79,11 @@ export default {
 
     if (request.method === 'POST' && url.pathname === '/upload') {
       try {
-        const storageInfo = await getStorageInfo(env.DB);
-        if (storageInfo.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
+        const storageCheck = await env.DB.prepare(
+          'SELECT COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
+        ).bind(new Date().toISOString()).first();
+
+        if (storageCheck.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
           return jsonResponse({
             error: '存储空间已满，请等待过期文件自动清理后再试',
             storageFull: true
@@ -267,16 +289,7 @@ export default {
 };
 
 function getFileExtension(mimeType) {
-  const mimeToExt = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/gif': 'gif',
-    'image/webp': 'webp',
-    'image/svg+xml': 'svg',
-    'image/x-icon': 'ico',
-    'image/bmp': 'bmp'
-  };
-  return mimeToExt[mimeType] || mimeType.split('/')[1] || 'jpg';
+  return MIME_TO_EXT[mimeType] || mimeType.split('/')[1] || 'bin';
 }
 
 async function cleanupExpiredFiles(env) {
@@ -288,15 +301,10 @@ async function cleanupExpiredFiles(env) {
 
   if (results.length === 0) return 0;
 
-  const filenames = results.map(r => r.filename);
+  await env.DB.prepare('DELETE FROM images WHERE expire_at <= ?').bind(now).run();
+  await Promise.all(results.map(r => env.R2_BUCKET.delete(r.filename)));
 
-  await env.DB.prepare(
-    'DELETE FROM images WHERE expire_at <= ?'
-  ).bind(now).run();
-
-  await Promise.all(filenames.map(key => env.R2_BUCKET.delete(key)));
-
-  return filenames.length;
+  return results.length;
 }
 
 async function getStorageInfo(db) {
