@@ -113,24 +113,32 @@ jobs:
           set_secret() {
             local name="$1"
             local value="$2"
-            if [ -n "$value" ]; then
-              BODY=$(jq -n --arg name "$name" --arg text "$value" '{name: $name, text: $text, type: "secret_text"}')
-              curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
-                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-                -H "Content-Type: application/json" \
-                -d "$BODY" && echo "  ✅ $name set" || echo "  ⚠️ $name failed"
+            if [ -z "$value" ]; then
+              echo "  ⏭️ $name skipped (empty)"
+              return
             fi
+            BODY=$(jq -n --arg name "$name" --arg text "$value" '{name: $name, text: $text, type: "secret_text"}')
+            curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$BODY" && echo "  ✅ $name set" || echo "  ⚠️ $name failed"
           }
 
           set_secret "R2_PUBLIC_DOMAIN" "${{ secrets.R2_PUBLIC_DOMAIN }}"
           set_secret "CRON_SECRET" "${{ secrets.CRON_SECRET }}"
-          set_secret "EXPIRE_HOURS" "${{ secrets.EXPIRE_HOURS }}"
-          set_secret "MAX_FILE_SIZE" "${{ secrets.MAX_FILE_SIZE }}"
-          set_secret "MAX_STORAGE_SIZE" "${{ secrets.MAX_STORAGE_SIZE }}"
-          set_secret "ALLOWED_TYPES" "${{ secrets.ALLOWED_TYPES }}"
-          set_secret "CORS_ALLOWED_ORIGINS" "${{ secrets.CORS_ALLOWED_ORIGINS }}"
+          set_secret "EXPIRE_HOURS" "${EXPIRE_HOURS_VAL}"
+          set_secret "MAX_FILE_SIZE" "${MAX_FILE_SIZE_VAL}"
+          set_secret "MAX_STORAGE_SIZE" "${MAX_STORAGE_SIZE_VAL}"
+          set_secret "ALLOWED_TYPES" "${ALLOWED_TYPES_VAL}"
+          set_secret "CORS_ALLOWED_ORIGINS" "${CORS_ALLOWED_ORIGINS_VAL}"
 
           echo "✅ Worker secrets configured"
+        env:
+          EXPIRE_HOURS_VAL: ${{ secrets.EXPIRE_HOURS || '12' }}
+          MAX_FILE_SIZE_VAL: ${{ secrets.MAX_FILE_SIZE || '20' }}
+          MAX_STORAGE_SIZE_VAL: ${{ secrets.MAX_STORAGE_SIZE || '1000' }}
+          ALLOWED_TYPES_VAL: ${{ secrets.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}
+          CORS_ALLOWED_ORIGINS_VAL: ${{ secrets.CORS_ALLOWED_ORIGINS }}
 
       - name: 📝 Generate Frontend Config
         run: |

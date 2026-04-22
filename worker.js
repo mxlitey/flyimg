@@ -71,7 +71,6 @@ export default {
         const formData = await request.formData();
         const file = formData.get('file');
         const userTag = formData.get('user_tag') || 'default';
-        const md5Hash = formData.get('md5') || null;
 
         if (!file) {
           return jsonResponse({ error: '未上传文件' }, 400);
@@ -93,45 +92,7 @@ export default {
         const timestamp = Date.now();
         const randomStr = Math.random().toString(36).substring(2, 15);
         const ext = getFileExtension(file.type);
-        const fileName = md5Hash ? `${md5Hash}.${ext}` : `${timestamp}-${randomStr}.${ext}`;
-
-        if (md5Hash) {
-          const now = new Date().toISOString();
-
-          const existingFile = await env.DB.prepare(
-            'SELECT url, size FROM images WHERE filename = ? AND expire_at > ? LIMIT 1'
-          ).bind(fileName, now).first();
-
-          if (existingFile) {
-            const newExpireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
-            const newExpireAtISO = new Date(newExpireAt).toISOString();
-
-            await env.DB.prepare(
-              'INSERT INTO images (filename, url, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(filename, user_tag) DO UPDATE SET expire_at = excluded.expire_at'
-            ).bind(
-              fileName,
-              existingFile.url,
-              existingFile.size,
-              userTag,
-              newExpireAtISO,
-              new Date(timestamp).toISOString()
-            ).run();
-
-            return jsonResponse({
-              success: true,
-              url: existingFile.url,
-              markdown: `![图片](${existingFile.url})`,
-              html: `<img src="${existingFile.url}" alt="flyimg">`,
-              expireAt: newExpireAtISO,
-              expireHours: CONFIG.EXPIRE_HOURS,
-              cached: true
-            });
-          }
-
-          await env.DB.prepare(
-            'DELETE FROM images WHERE filename = ? AND expire_at <= ?'
-          ).bind(fileName, now).run();
-        }
+        const fileName = `${timestamp}-${randomStr}.${ext}`;
 
         const expireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
         const expireAtISO = new Date(expireAt).toISOString();
@@ -167,8 +128,7 @@ export default {
           markdown: `![图片](${imageUrl})`,
           html: `<img src="${imageUrl}" alt="flyimg">`,
           expireAt: expireAtISO,
-          expireHours: CONFIG.EXPIRE_HOURS,
-          cached: false
+          expireHours: CONFIG.EXPIRE_HOURS
         });
 
       } catch (error) {
@@ -240,14 +200,7 @@ export default {
         }
 
         await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(filename).run();
-
-        const anyRemaining = await env.DB.prepare(
-          'SELECT id FROM images WHERE filename = ? LIMIT 1'
-        ).bind(filename).first();
-
-        if (!anyRemaining) {
-          await env.R2_BUCKET.delete(filename);
-        }
+        await env.R2_BUCKET.delete(filename);
 
         return jsonResponse({
           success: true,
@@ -335,33 +288,21 @@ async function cleanupExpiredFiles(env) {
 
   if (results.length === 0) return 0;
 
-  const filenamesToDelete = [];
-
-  for (const r of results) {
-    const activeRecord = await env.DB.prepare(
-      'SELECT id FROM images WHERE filename = ? AND expire_at > ? LIMIT 1'
-    ).bind(r.filename, now).first();
-
-    if (!activeRecord) {
-      filenamesToDelete.push(r.filename);
-    }
-  }
+  const filenames = results.map(r => r.filename);
 
   await env.DB.prepare(
     'DELETE FROM images WHERE expire_at <= ?'
   ).bind(now).run();
 
-  if (filenamesToDelete.length > 0) {
-    await Promise.all(filenamesToDelete.map(key => env.R2_BUCKET.delete(key)));
-  }
+  await Promise.all(filenames.map(key => env.R2_BUCKET.delete(key)));
 
-  return filenamesToDelete.length;
+  return filenames.length;
 }
 
 async function getStorageInfo(db) {
   const now = new Date().toISOString();
   const result = await db.prepare(
-    'SELECT COUNT(*) as totalFiles, COALESCE(SUM(size), 0) as totalSize FROM (SELECT filename, MAX(size) as size FROM images WHERE expire_at > ? GROUP BY filename)'
+    'SELECT COUNT(*) as totalFiles, COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
   ).bind(now).first();
 
   return {

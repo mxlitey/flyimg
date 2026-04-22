@@ -10,4 +10,4 @@ CREATE TABLE IF NOT EXISTS images (
 
 CREATE INDEX IF NOT EXISTS idx_images_user_tag ON images(user_tag);
 CREATE INDEX IF NOT EXISTS idx_images_expire_at ON images(expire_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_images_file_user ON images(filename, user_tag);
+CREATE INDEX IF NOT EXISTS idx_images_filename ON images(filename);
