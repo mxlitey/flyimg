@@ -141,7 +141,7 @@ const Admin = {
       <div class="flex-grow min-w-0">
         <p class="text-sm font-mono truncate text-gray-300">${displayFilename}</p>
         <p class="text-xs text-gray-500">用户: ${safeUserTag} · ${Utils.formatBytes(img.size)} · ${Utils.formatDate(img.created_at)}</p>
-        <p class="text-xs ${isExpired ? 'text-danger' : 'text-success'}">${Utils.formatTimeLeft(img.expire_at)}</p>
+        <p class="text-xs ${isExpired ? 'text-danger' : 'text-success'}">${Utils.formatExpireTime(img.expire_at)}</p>
       </div>
       <button class="btn-delete bg-danger/20 text-danger px-3 py-2 rounded-lg hover:bg-danger/30 transition-colors text-sm flex-shrink-0" data-filename="${safeFilename}">
         <i class="fa fa-trash"></i>

@@ -71,7 +71,7 @@ const UserPage = {
       </div>
       <div class="p-3">
         <p class="text-xs text-gray-400 mb-1">${Utils.formatDate(img.created_at)}</p>
-        <p class="text-xs text-gray-500">${Utils.formatTimeLeft(img.expire_at)}</p>
+        <p class="text-xs text-gray-500">${Utils.formatExpireTime(img.expire_at)}</p>
         <p class="text-xs text-gray-500 mt-1">${Utils.formatBytes(img.size)}</p>
         <button class="btn-copy mt-2 w-full bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors" data-url="${safeUrl}">
           <i class="fa fa-copy mr-1"></i>复制链接

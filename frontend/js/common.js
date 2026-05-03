@@ -37,10 +37,14 @@ const Utils = {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   },
 
-  formatTimeLeft(expireAt) {
+  formatExpireTime(expireAt) {
     const expireDate = new Date(expireAt);
-    const hoursLeft = Math.round((expireDate - Date.now()) / (1000 * 60 * 60));
-    return hoursLeft > 0 ? `${hoursLeft}小时后过期` : '已过期';
+    if (expireDate <= Date.now()) return '已过期';
+    const month = String(expireDate.getMonth() + 1).padStart(2, '0');
+    const day = String(expireDate.getDate()).padStart(2, '0');
+    const hours = String(expireDate.getHours()).padStart(2, '0');
+    const minutes = String(expireDate.getMinutes()).padStart(2, '0');
+    return `${month}-${day} ${hours}:${minutes} 过期`;
   }
 };
 
