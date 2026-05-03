@@ -16,8 +16,7 @@ const UserPage = {
   },
 
   getUserTagFromUrl() {
-    const path = window.location.pathname;
-    const segments = path.split('/').filter(s => s.length > 0);
+    const segments = window.location.pathname.split('/').filter(s => s.length > 0);
     if (segments.length >= 1) {
       return segments[segments.length - 1] || segments[0];
     }
@@ -55,10 +54,7 @@ const UserPage = {
 
       grid.classList.remove('hidden');
       grid.innerHTML = '';
-
-      this.images.forEach(img => {
-        grid.appendChild(this.createImageCard(img));
-      });
+      this.images.forEach(img => grid.appendChild(this.createImageCard(img)));
     } catch {
       loading.classList.add('hidden');
       empty.classList.remove('hidden');
@@ -70,9 +66,7 @@ const UserPage = {
     const grid = document.getElementById('images-grid');
     if (!grid || grid.classList.contains('hidden')) return;
     grid.innerHTML = '';
-    this.images.forEach(img => {
-      grid.appendChild(this.createImageCard(img));
-    });
+    this.images.forEach(img => grid.appendChild(this.createImageCard(img)));
   },
 
   createImageCard(img) {
@@ -82,11 +76,10 @@ const UserPage = {
     const safeFilename = Utils.escapeAttr(img.filename || '');
     const renewCount = img.renew_count || 0;
     const canRenew = renewCount < this.renewConfig.max_count;
-    const isDark = document.documentElement.classList.contains('dark');
-    const infoColor = isDark ? '#9ca3af' : '#6b7280';
+    const colors = Theme.getThemeColors();
 
-    const renewBadge = renewCount > 0 
-      ? `<span class="text-xs" style="color: ${infoColor}">(已续${renewCount}次)</span>` 
+    const renewBadge = renewCount > 0
+      ? `<span class="text-xs" style="color: ${colors.info}">(已续${renewCount}次)</span>`
       : '';
 
     card.className = `${Theme.getCardClass()} rounded-xl overflow-hidden`;
@@ -95,9 +88,9 @@ const UserPage = {
         <img src="${displayUrl}" alt="资源" class="w-full h-40 object-cover" loading="lazy" onerror="this.style.display='none'">
       </div>
       <div class="p-3">
-        <p class="text-xs mb-1" style="color: ${infoColor}">${Utils.formatDate(img.created_at)}</p>
-        <p class="text-xs" style="color: ${infoColor}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
-        <p class="text-xs mt-1" style="color: ${infoColor}">${Utils.formatBytes(img.size)}</p>
+        <p class="text-xs mb-1" style="color: ${colors.info}">${Utils.formatDate(img.created_at)}</p>
+        <p class="text-xs" style="color: ${colors.info}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
+        <p class="text-xs mt-1" style="color: ${colors.info}">${Utils.formatBytes(img.size)}</p>
         <div class="flex gap-2 mt-2">
           <button class="btn-copy flex-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors" data-url="${safeUrl}">
             <i class="fa fa-copy mr-1"></i>复制
@@ -109,8 +102,7 @@ const UserPage = {
       </div>
     `;
 
-    const copyBtn = card.querySelector('.btn-copy');
-    copyBtn.addEventListener('click', () => Clipboard.copy(copyBtn.dataset.url));
+    card.querySelector('.btn-copy').addEventListener('click', function() { Clipboard.copy(this.dataset.url); });
 
     const renewBtn = card.querySelector('.btn-renew');
     if (renewBtn) {
@@ -121,44 +113,29 @@ const UserPage = {
   },
 
   showRenewModal(img) {
-    const durations = this.renewConfig.durations;
     const maxCount = this.renewConfig.max_count;
     const currentCount = img.renew_count || 0;
-    const isDark = document.documentElement.classList.contains('dark');
+    const colors = Theme.getThemeColors();
 
-    const durationOptions = durations.map(d => {
-      if (d === 0) {
-        return `<option value="0">永不过期</option>`;
-      }
-      const hours = Math.floor(d / 60);
-      const mins = d % 60;
-      const label = hours > 0 
-        ? (mins > 0 ? `${hours}小时${mins}分` : `${hours}小时`)
-        : `${mins}分钟`;
-      return `<option value="${d}">${label}</option>`;
-    }).join('');
-
-    const titleColor = isDark ? '#ffffff' : '#000000';
-    const textColor = isDark ? '#d1d5db' : '#374151';
-    const highlightColor = isDark ? '#ffffff' : '#000000';
-    const cancelBg = isDark ? '#374155' : '#e5e7eb';
-    const cancelText = isDark ? '#ffffff' : '#1f2937';
+    const durationOptions = this.renewConfig.durations.map(d =>
+      `<option value="${d}">${Utils.formatDurationLabel(d)}</option>`
+    ).join('');
 
     const modalHtml = `
       <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
-          <h3 class="text-lg font-semibold mb-2" style="color: ${titleColor}">续期资源</h3>
-          <p class="text-sm mb-4" style="color: ${textColor}">
-            剩余续期次数：<span class="font-medium" style="color: ${highlightColor}">${maxCount - currentCount}</span> / ${maxCount}
+          <h3 class="text-lg font-semibold mb-2" style="color: ${colors.title}">续期资源</h3>
+          <p class="text-sm mb-4" style="color: ${colors.text}">
+            剩余续期次数：<span class="font-medium" style="color: ${colors.highlight}">${maxCount - currentCount}</span> / ${maxCount}
           </p>
           <div class="mb-4">
-            <label class="block text-sm mb-2 font-medium" style="color: ${textColor}">选择续期时长</label>
+            <label class="block text-sm mb-2 font-medium" style="color: ${colors.text}">选择续期时长</label>
             <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
               ${durationOptions}
             </select>
           </div>
           <div class="flex gap-3">
-            <button id="renew-cancel" class="flex-1 px-4 py-2 rounded-lg transition-colors" style="background-color: ${cancelBg}; color: ${cancelText}">取消</button>
+            <button id="renew-cancel" class="flex-1 px-4 py-2 rounded-lg transition-colors" style="background-color: ${colors.cancelBg}; color: ${colors.cancelText}">取消</button>
             <button id="renew-confirm" class="flex-1 bg-success text-white px-4 py-2 rounded-lg hover:bg-success/90 transition-colors">确认续期</button>
           </div>
         </div>
@@ -169,48 +146,29 @@ const UserPage = {
     Theme.applyThemeInputs();
 
     const modal = document.getElementById('renew-modal');
-    const cancelBtn = document.getElementById('renew-cancel');
-    const confirmBtn = document.getElementById('renew-confirm');
-    const durationSelect = document.getElementById('renew-duration');
-
     const closeModal = () => modal.remove();
 
-    cancelBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
-    });
+    document.getElementById('renew-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-    confirmBtn.addEventListener('click', async () => {
-      const duration = parseInt(durationSelect.value, 10);
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = '处理中...';
+    document.getElementById('renew-confirm').addEventListener('click', async function() {
+      const duration = parseInt(document.getElementById('renew-duration').value, 10);
+      this.disabled = true;
+      this.textContent = '处理中...';
 
       try {
-        const resp = await fetch(`${this.API_BASE}/renew`, {
+        const resp = await fetch(`${UserPage.API_BASE}/renew`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: img.filename,
-            duration: duration,
-            user_tag: this.userTag
-          })
+          body: JSON.stringify({ filename: img.filename, duration, user_tag: UserPage.userTag })
         });
-
         const data = await resp.json();
-
-        if (data.success) {
-          Toast.show(data.message);
-          closeModal();
-          this.loadImages();
-        } else {
-          Toast.show(data.error || '续期失败');
-          confirmBtn.disabled = false;
-          confirmBtn.textContent = '确认续期';
-        }
+        if (data.success) { Toast.show(data.message); closeModal(); UserPage.loadImages(); }
+        else { Toast.show(data.error || '续期失败'); this.disabled = false; this.textContent = '确认续期'; }
       } catch {
         Toast.show('续期失败');
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = '确认续期';
+        this.disabled = false;
+        this.textContent = '确认续期';
       }
     });
   }

@@ -12,21 +12,17 @@ const Utils = {
   escapeAttr(str) {
     if (!str) return '';
     return String(str)
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/"/g, '\\"')
-      .replace(/</g, '\\x3C')
-      .replace(/>/g, '\\x3E');
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   },
 
   formatDate(date) {
     const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   },
 
   formatBytes(bytes) {
@@ -38,17 +34,23 @@ const Utils = {
   },
 
   formatExpireTime(expireAt) {
-    const expireDate = new Date(expireAt);
-    const now = Date.now();
-    if (expireDate <= now) return '已过期';
-    
-    const diff = expireDate - now;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
+    const diff = new Date(expireAt) - Date.now();
+    if (diff <= 0) return '已过期';
+
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+
     if (hours >= 24) return '>1天';
     if (hours > 0) return `${hours}小时${minutes}分后过期`;
     return `${minutes}分钟后过期`;
+  },
+
+  formatDurationLabel(d) {
+    if (d === 0) return '永不过期';
+    const hours = Math.floor(d / 60);
+    const mins = d % 60;
+    if (hours > 0) return mins > 0 ? `${hours}小时${mins}分` : `${hours}小时`;
+    return `${mins}分钟`;
   }
 };
 
@@ -79,7 +81,6 @@ const Theme = {
     this.toggleBtn = document.getElementById('theme-toggle');
     this.moonIcon = document.getElementById('theme-icon-moon');
     this.lightIcon = document.getElementById('theme-icon-light');
-
     this.apply();
 
     if (this.toggleBtn) {
@@ -93,6 +94,10 @@ const Theme = {
 
   triggerChange() {
     this.onChangeCallbacks.forEach(cb => cb());
+  },
+
+  isDark() {
+    return document.documentElement.classList.contains('dark');
   },
 
   apply() {
@@ -115,20 +120,20 @@ const Theme = {
   },
 
   toggle() {
-    const isDark = document.documentElement.classList.contains('dark');
+    const dark = !this.isDark();
 
-    if (isDark) {
-      document.documentElement.classList.remove('dark');
-      localStorage.theme = 'light';
-      document.body.classList.add('bg-gray-50', 'text-gray-900');
-      document.body.classList.remove('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
-      this.switchGlassClass('glass', 'glass-light');
-    } else {
+    if (dark) {
       document.documentElement.classList.add('dark');
       localStorage.theme = 'dark';
       document.body.classList.add('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
       document.body.classList.remove('bg-gray-50', 'text-gray-900');
       this.switchGlassClass('glass-light', 'glass');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.theme = 'light';
+      document.body.classList.add('bg-gray-50', 'text-gray-900');
+      document.body.classList.remove('bg-gradient-to-b', 'from-dark-900', 'to-dark-800', 'text-white');
+      this.switchGlassClass('glass', 'glass-light');
     }
 
     this.updateIcon();
@@ -144,28 +149,35 @@ const Theme = {
   },
 
   updateIcon() {
-    const isDark = document.documentElement.classList.contains('dark');
-    if (this.moonIcon) this.moonIcon.classList.toggle('hidden', isDark);
-    if (this.lightIcon) this.lightIcon.classList.toggle('hidden', !isDark);
+    const dark = this.isDark();
+    if (this.moonIcon) this.moonIcon.classList.toggle('hidden', dark);
+    if (this.lightIcon) this.lightIcon.classList.toggle('hidden', !dark);
   },
 
   applyThemeInputs() {
-    const isDark = document.documentElement.classList.contains('dark');
+    const dark = this.isDark();
     document.querySelectorAll('.theme-input').forEach(el => {
-      if (isDark) {
-        el.style.backgroundColor = '#334155';
-        el.style.borderColor = '#475569';
-        el.style.color = '#ffffff';
-      } else {
-        el.style.backgroundColor = '#f9fafb';
-        el.style.borderColor = '#d1d5db';
-        el.style.color = '#111827';
-      }
+      el.style.backgroundColor = dark ? '#334155' : '#f9fafb';
+      el.style.borderColor = dark ? '#475569' : '#d1d5db';
+      el.style.color = dark ? '#ffffff' : '#111827';
     });
   },
 
   getCardClass() {
-    return document.documentElement.classList.contains('dark') ? 'glass' : 'glass-light';
+    return this.isDark() ? 'glass' : 'glass-light';
+  },
+
+  getThemeColors() {
+    const dark = this.isDark();
+    return {
+      title: dark ? '#ffffff' : '#000000',
+      text: dark ? '#d1d5db' : '#374151',
+      highlight: dark ? '#ffffff' : '#000000',
+      cancelBg: dark ? '#374155' : '#e5e7eb',
+      cancelText: dark ? '#ffffff' : '#1f2937',
+      filename: dark ? '#d1d5db' : '#1f2937',
+      info: dark ? '#9ca3af' : '#6b7280',
+    };
   }
 };
 

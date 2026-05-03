@@ -1,0 +1,13 @@
+{
+  "name": "flyimg",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 execute flyimg-db --file=migrations/0001_init.sql --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  }
+}

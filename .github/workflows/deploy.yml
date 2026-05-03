@@ -47,7 +47,6 @@ jobs:
           fi
 
           echo "All required configuration is set"
-          echo ""
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -67,23 +66,15 @@ jobs:
           MAX_STORAGE_SIZE="${{ vars.MAX_STORAGE_SIZE || '1000' }}"
           ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}"
           RENEW_OPTIONS="${{ vars.RENEW_OPTIONS || '3;60;180;360;720' }}"
-          
+
           sed -i "s|R2_PUBLIC_DOMAIN = \"[^\"]*\"|R2_PUBLIC_DOMAIN = \"${R2_DOMAIN}\"|g" wrangler.toml
           sed -i "s|EXPIRE_HOURS = \"[^\"]*\"|EXPIRE_HOURS = \"${EXPIRE_HOURS}\"|g" wrangler.toml
           sed -i "s|MAX_FILE_SIZE = \"[^\"]*\"|MAX_FILE_SIZE = \"${MAX_FILE_SIZE}\"|g" wrangler.toml
           sed -i "s|MAX_STORAGE_SIZE = \"[^\"]*\"|MAX_STORAGE_SIZE = \"${MAX_STORAGE_SIZE}\"|g" wrangler.toml
           sed -i "s|ALLOWED_TYPES = \"[^\"]*\"|ALLOWED_TYPES = \"${ALLOWED_TYPES}\"|g" wrangler.toml
           sed -i "s|RENEW_OPTIONS = \"[^\"]*\"|RENEW_OPTIONS = \"${RENEW_OPTIONS}\"|g" wrangler.toml
-          
-          echo "Updated wrangler.toml with variables"
-          echo ""
-          echo "Configuration:"
-          echo "  - R2_PUBLIC_DOMAIN: ${R2_DOMAIN}"
-          echo "  - EXPIRE_HOURS: ${EXPIRE_HOURS}"
-          echo "  - MAX_FILE_SIZE: ${MAX_FILE_SIZE}MB"
-          echo "  - MAX_STORAGE_SIZE: ${MAX_STORAGE_SIZE}MB"
-          echo "  - ALLOWED_TYPES: ${ALLOWED_TYPES}"
-          echo "  - RENEW_OPTIONS: ${RENEW_OPTIONS}"
+
+          echo "Updated wrangler.toml"
 
       - name: Generate Frontend Config
         run: |
@@ -92,7 +83,7 @@ jobs:
           MAX_STORAGE_SIZE="${{ vars.MAX_STORAGE_SIZE || '1000' }}"
           ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}"
           RENEW_OPTIONS="${{ vars.RENEW_OPTIONS || '3;60;180;360;720' }}"
-          
+
           TYPES_DISPLAY=$(echo "$ALLOWED_TYPES" | jq -R 'split(",") | map(
             if . == "image/jpeg" then "JPG"
             elif . == "image/png" then "PNG"
@@ -113,12 +104,11 @@ jobs:
             else ""
             end
           ) | map(select(length > 0)) | join("、")')
-          
+
           RENEW_PARTS=(${RENEW_OPTIONS//;/ })
           RENEW_MAX_COUNT=${RENEW_PARTS[0]}
-          RENEW_DURATIONS="${RENEW_PARTS[@]:1}"
           RENEW_DURATIONS_JSON=$(echo "${RENEW_PARTS[@]:1}" | tr ' ' '\n' | jq -s '.')
-          
+
           cat > frontend/config.js << EOF
           const API_BASE = '';
           const DISPLAY_CONFIG = {
@@ -130,9 +120,6 @@ jobs:
             renewDurations: ${RENEW_DURATIONS_JSON}
           };
           EOF
-          
-          echo "Generated frontend/config.js:"
-          cat frontend/config.js
 
       - name: Setup D1 Database
         id: setup-d1
@@ -153,9 +140,6 @@ jobs:
             if [ -z "$D1_ID" ]; then
               echo "::error::Failed to create D1 database."
               echo "Output: $CREATE_OUTPUT"
-              echo ""
-              echo "Please create it manually in Cloudflare Dashboard or run:"
-              echo "  npx wrangler d1 create flyimg-db"
               exit 1
             fi
             echo "Created new D1 database: $D1_ID"
@@ -164,10 +148,13 @@ jobs:
           echo "database_id=$D1_ID" >> $GITHUB_OUTPUT
           sed -i "s/YOUR_D1_DATABASE_ID/$D1_ID/g" wrangler.toml
 
-      - name: Execute D1 Migration
+      - name: Execute D1 Migrations
         run: |
-          wrangler d1 execute flyimg-db --file=migrations/0001_init.sql --remote
-          echo "D1 migration completed"
+          for file in migrations/*.sql; do
+            echo "Running migration: $file"
+            wrangler d1 execute flyimg-db --file="$file" --remote 2>&1 || true
+          done
+          echo "D1 migrations completed"
 
       - name: Ensure R2 Bucket
         run: |
@@ -179,10 +166,9 @@ jobs:
         run: |
           DEPLOY_OUTPUT=$(wrangler deploy 2>&1)
           echo "$DEPLOY_OUTPUT"
-          
+
           WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[a-zA-Z0-9_-]+\.workers\.dev' | head -1 || true)
           echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
-          echo "Worker with Assets deployed: $WORKER_URL"
 
       - name: Set Worker Secrets
         run: |
@@ -201,13 +187,11 @@ jobs:
           }
 
           set_secret "CRON_SECRET" "${{ secrets.CRON_SECRET }}"
-          
+
           CORS_ORIGINS="${{ vars.CORS_ALLOWED_ORIGINS }}"
           if [ -n "$CORS_ORIGINS" ]; then
             set_secret "CORS_ALLOWED_ORIGINS" "$CORS_ORIGINS"
           fi
-
-          echo "Worker secrets configured"
 
       - name: Deployment Summary
         if: always()
@@ -233,13 +217,6 @@ jobs:
             echo "- Frontend & API: \`${WORKER_URL}\`" >> $GITHUB_STEP_SUMMARY
             echo "- Image CDN: \`${R2_DOMAIN}\`" >> $GITHUB_STEP_SUMMARY
             echo "- Admin Panel: \`${WORKER_URL}/admin\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-
-            echo "### Configuration" >> $GITHUB_STEP_SUMMARY
-            echo "- EXPIRE_HOURS: ${{ vars.EXPIRE_HOURS || '12' }}" >> $GITHUB_STEP_SUMMARY
-            echo "- MAX_FILE_SIZE: ${{ vars.MAX_FILE_SIZE || '20' }}MB" >> $GITHUB_STEP_SUMMARY
-            echo "- MAX_STORAGE_SIZE: ${{ vars.MAX_STORAGE_SIZE || '1000' }}MB" >> $GITHUB_STEP_SUMMARY
-            echo "- ALLOWED_TYPES: \`${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "Deployment failed. Check the logs above for details." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

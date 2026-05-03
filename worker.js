@@ -21,28 +21,108 @@ const FILE_SIGNATURES = {
   'image/jpeg': [[0xFF, 0xD8, 0xFF]],
   'image/png': [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
   'image/gif': [[0x47, 0x49, 0x46, 0x38]],
-  'image/webp': [[0x52, 0x49, 0x46, 0x46]],
   'image/bmp': [[0x42, 0x4D]],
   'image/x-icon': [[0x00, 0x00, 0x01, 0x00]],
   'audio/mpeg': [[0xFF, 0xFB], [0xFF, 0xFA], [0x49, 0x44, 0x33]],
-  'audio/wav': [[0x52, 0x49, 0x46, 0x46]],
-  'video/mp4': [[0x00, 0x00, 0x00], [0x66, 0x74, 0x79, 0x70]],
   'video/webm': [[0x1A, 0x45, 0xDF, 0xA3]],
-  'video/quicktime': [[0x00, 0x00, 0x00], [0x66, 0x74, 0x79, 0x70]],
 };
+
+const RIFF_SUBTYPES = {
+  'image/webp': [0x57, 0x45, 0x42, 0x50],
+  'audio/wav': [0x57, 0x41, 0x56, 0x45],
+};
+
+const FTYPE_FORMATS = new Set(['video/mp4', 'video/quicktime']);
+
+const SVG_DANGEROUS_PATTERNS = [
+  /<script[\s>]/i,
+  /\bon\w+\s*=/i,
+  /javascript\s*:/i,
+  /vbscript\s*:/i,
+  /<foreignobject[\s>]/i,
+  /expression\s*\(/i,
+  /<embed[\s>]/i,
+  /<iframe[\s>]/i,
+  /<object[\s>]/i,
+  /data\s*:\s*text\/html/i,
+];
+
+const UNSIGNABLE_TYPES = new Set([
+  'image/svg+xml', 'audio/ogg', 'audio/aac',
+  'audio/mp4', 'video/x-msvideo',
+]);
 
 const API_ROUTES = ['/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images', '/renew'];
 
-const STATIC_EXTENSIONS = ['.html', '.css', '.js', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot'];
+const ROUTE_METHODS = {
+  '/upload': 'POST',
+  '/delete': 'POST',
+  '/clean': 'POST',
+  '/stats': 'GET',
+  '/my-images': 'GET',
+  '/all-images': 'GET',
+  '/renew': 'POST',
+};
+
+const STATIC_EXTENSIONS = new Set([
+  '.html', '.css', '.js', '.json', '.png', '.jpg', '.jpeg',
+  '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot',
+]);
+
+const RATE_LIMITS = {
+  upload: { windowMs: 60000, max: 30 },
+  api: { windowMs: 60000, max: 120 },
+};
+
+const DEFAULT_PAGE_LIMIT = 50;
+const MAX_PAGE_LIMIT = 100;
+const PERMANENT_EXPIRY = '2099-12-31T23:59:59Z';
+
+const rateLimitStore = new Map();
 
 let cachedConfig = null;
+
+function checkRateLimit(ip, type) {
+  const limit = RATE_LIMITS[type];
+  if (!limit) return true;
+
+  const now = Date.now();
+  const key = `${ip}:${type}`;
+  const record = rateLimitStore.get(key);
+
+  if (!record || now - record.startTime > limit.windowMs) {
+    rateLimitStore.set(key, { startTime: now, count: 1 });
+    return true;
+  }
+
+  if (record.count >= limit.max) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+function cleanupRateLimits() {
+  const now = Date.now();
+  const maxWindow = 120000;
+  for (const [key, record] of rateLimitStore) {
+    if (now - record.startTime > maxWindow) {
+      rateLimitStore.delete(key);
+    }
+  }
+}
 
 function isAPIRequest(pathname) {
   return API_ROUTES.some(route => pathname === route || pathname.startsWith(route + '/'));
 }
 
 function isStaticAsset(pathname) {
-  return STATIC_EXTENSIONS.some(ext => pathname.toLowerCase().endsWith(ext));
+  const lower = pathname.toLowerCase();
+  for (const ext of STATIC_EXTENSIONS) {
+    if (lower.endsWith(ext)) return true;
+  }
+  return false;
 }
 
 function isValidUserTag(tag) {
@@ -54,101 +134,7 @@ function isUserTagRoute(pathname) {
   if (pathname === '/' || pathname === '') return false;
   const segments = pathname.split('/').filter(s => s.length > 0);
   if (segments.length !== 1) return false;
-  const tag = segments[0];
-  return isValidUserTag(tag);
-}
-
-function getUserTagFromPath(pathname) {
-  const segments = pathname.split('/').filter(s => s.length > 0);
-  return segments[0] || null;
-}
-
-async function timingSafeEqual(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const encoder = new TextEncoder();
-  const bufferA = encoder.encode(a);
-  const bufferB = encoder.encode(b);
-  
-  if (bufferA.length !== bufferB.length) {
-    return !crypto.subtle.timingSafeEqual(bufferA, bufferA);
-  }
-  
-  return crypto.subtle.timingSafeEqual(bufferA, bufferB);
-}
-
-function sanitizeR2Domain(domain) {
-  if (!domain) return '';
-  let cleaned = domain.trim();
-  if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
-    cleaned = 'https://' + cleaned;
-  }
-  cleaned = cleaned.replace(/^http:\/\//i, 'https://');
-  try {
-    const url = new URL(cleaned);
-    return url.origin;
-  } catch {
-    console.error('Invalid R2_PUBLIC_DOMAIN:', domain);
-    return '';
-  }
-}
-
-function sanitizeUserTag(tag) {
-  if (!tag) return 'default';
-  const cleaned = String(tag).trim().slice(0, 32);
-  if (!/^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$/.test(cleaned)) {
-    return 'default';
-  }
-  return cleaned || 'default';
-}
-
-function getConfig(env) {
-  if (cachedConfig) return cachedConfig;
-  
-  const expireHours = parseInt(env.EXPIRE_HOURS || '12', 10);
-  
-  const renewOptionsRaw = env.RENEW_OPTIONS || '3;60;180;360;720';
-  const renewParts = renewOptionsRaw.split(';').map(s => parseInt(s.trim(), 10));
-  const maxRenewCount = renewParts[0] || 3;
-  const renewDurations = renewParts.slice(1).filter(n => !isNaN(n) && n >= 0);
-  
-  cachedConfig = {
-    R2_BUCKET: env.R2_BUCKET,
-    R2_PUBLIC_DOMAIN: sanitizeR2Domain(env.R2_PUBLIC_DOMAIN),
-    EXPIRE_HOURS: expireHours,
-    MAX_FILE_SIZE: parseInt(env.MAX_FILE_SIZE || '20', 10) * 1024 * 1024,
-    MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000', 10) * 1024 * 1024,
-    ALLOWED_TYPES: (env.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml').split(',').map(t => t.trim()),
-    CRON_SECRET: env.CRON_SECRET || '',
-    CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',').map(t => t.trim()) : null,
-    CACHE_MAX_AGE: expireHours * 3600,
-    MAX_RENEW_COUNT: maxRenewCount,
-    RENEW_DURATIONS: renewDurations
-  };
-  
-  return cachedConfig;
-}
-
-function getResponseHeaders(origin, CONFIG) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (CONFIG.CORS_ALLOWED_ORIGINS) {
-    if (origin && CONFIG.CORS_ALLOWED_ORIGINS.includes(origin)) {
-      headers['Access-Control-Allow-Origin'] = origin;
-      headers['Vary'] = 'Origin';
-    }
-  } else {
-    headers['Access-Control-Allow-Origin'] = '*';
-  }
-  return headers;
-}
-
-function jsonResponse(data, status, origin, CONFIG, extraHeaders = {}) {
-  const headers = { ...getResponseHeaders(origin, CONFIG), ...extraHeaders };
-  return new Response(JSON.stringify(data), { status, headers });
-}
-
-async function verifyAdmin(request, CONFIG) {
-  const secret = request.headers.get('X-Cron-Secret') || '';
-  return timingSafeEqual(secret, CONFIG.CRON_SECRET);
+  return isValidUserTag(segments[0]);
 }
 
 function getFileExtension(mimeType) {
@@ -163,28 +149,74 @@ function generateFileName(mimeType) {
   return `${timestamp}-${random1}-${random2}.${ext}`;
 }
 
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const encoder = new TextEncoder();
+  const aBuf = encoder.encode(a);
+  const bBuf = encoder.encode(b);
+
+  if (aBuf.length !== bBuf.length) {
+    crypto.subtle.timingSafeEqual(aBuf, aBuf);
+    return false;
+  }
+
+  return crypto.subtle.timingSafeEqual(aBuf, bBuf);
+}
+
+async function verifyAdmin(request, CONFIG) {
+  const secret = request.headers.get('X-Cron-Secret') || '';
+  return timingSafeEqual(secret, CONFIG.CRON_SECRET);
+}
+
 async function verifyFileSignature(file, mimeType) {
-  if (mimeType === 'image/svg+xml' || mimeType === 'audio/ogg' || 
-      mimeType === 'audio/aac' || mimeType === 'audio/mp4' ||
-      mimeType === 'video/x-msvideo') {
+  if (UNSIGNABLE_TYPES.has(mimeType)) return true;
+
+  if (RIFF_SUBTYPES[mimeType]) {
+    const buffer = await file.slice(0, 12).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    if (bytes[0] !== 0x52 || bytes[1] !== 0x49 || bytes[2] !== 0x46 || bytes[3] !== 0x46) {
+      return false;
+    }
+    const subtype = RIFF_SUBTYPES[mimeType];
+    for (let i = 0; i < subtype.length; i++) {
+      if (bytes[8 + i] !== subtype[i]) return false;
+    }
     return true;
+  }
+
+  if (FTYPE_FORMATS.has(mimeType)) {
+    const buffer = await file.slice(0, 8).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
   }
 
   const signatures = FILE_SIGNATURES[mimeType];
   if (!signatures) return true;
 
   try {
-    const chunk = file.slice(0, 16);
-    const buffer = await chunk.arrayBuffer();
+    const buffer = await file.slice(0, 16).arrayBuffer();
     const bytes = new Uint8Array(buffer);
-
     for (const sig of signatures) {
       let match = true;
       for (let i = 0; i < sig.length; i++) {
-        if (bytes[i] !== sig[i]) {
-          match = false;
-          break;
-        }
+        if (bytes[i] !== sig[i]) { match = false; break; }
       }
       if (match) return true;
     }
@@ -194,43 +226,118 @@ async function verifyFileSignature(file, mimeType) {
   }
 }
 
+function verifySvgContent(text) {
+  for (const pattern of SVG_DANGEROUS_PATTERNS) {
+    if (pattern.test(text)) return false;
+  }
+  return true;
+}
+
+function sanitizeR2Domain(domain) {
+  if (!domain) return '';
+  let cleaned = domain.trim();
+  if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    cleaned = 'https://' + cleaned;
+  }
+  cleaned = cleaned.replace(/^http:\/\//i, 'https://');
+  try {
+    return new URL(cleaned).origin;
+  } catch {
+    return '';
+  }
+}
+
+function sanitizeUserTag(tag) {
+  if (!tag) return 'default';
+  const cleaned = String(tag).trim().slice(0, 32);
+  if (!/^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$/.test(cleaned)) return 'default';
+  return cleaned || 'default';
+}
+
+function getConfig(env) {
+  if (cachedConfig) return cachedConfig;
+
+  const expireHours = parseInt(env.EXPIRE_HOURS || '12', 10);
+  const renewOptionsRaw = env.RENEW_OPTIONS || '3;60;180;360;720';
+  const renewParts = renewOptionsRaw.split(';').map(s => parseInt(s.trim(), 10));
+  const maxRenewCount = renewParts[0] || 3;
+  const renewDurations = renewParts.slice(1).filter(n => !isNaN(n) && n >= 0);
+
+  cachedConfig = {
+    R2_BUCKET: env.R2_BUCKET,
+    R2_PUBLIC_DOMAIN: sanitizeR2Domain(env.R2_PUBLIC_DOMAIN),
+    EXPIRE_HOURS: expireHours,
+    MAX_FILE_SIZE: parseInt(env.MAX_FILE_SIZE || '20', 10) * 1024 * 1024,
+    MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000', 10) * 1024 * 1024,
+    ALLOWED_TYPES: (env.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml').split(',').map(t => t.trim()),
+    CRON_SECRET: env.CRON_SECRET || '',
+    CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',').map(t => t.trim()) : null,
+    CACHE_MAX_AGE: expireHours * 3600,
+    MAX_RENEW_COUNT: maxRenewCount,
+    RENEW_DURATIONS: renewDurations,
+  };
+
+  return cachedConfig;
+}
+
+function getResponseHeaders(origin, CONFIG) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  };
+
+  if (CONFIG.CORS_ALLOWED_ORIGINS) {
+    if (origin && CONFIG.CORS_ALLOWED_ORIGINS.includes(origin)) {
+      headers['Access-Control-Allow-Origin'] = origin;
+      headers['Vary'] = 'Origin';
+    }
+  } else {
+    headers['Access-Control-Allow-Origin'] = '*';
+  }
+
+  return headers;
+}
+
+function jsonResponse(data, status, origin, CONFIG, extraHeaders = {}) {
+  const headers = { ...getResponseHeaders(origin, CONFIG), ...extraHeaders };
+  return new Response(JSON.stringify(data), { status, headers });
+}
+
+function parsePagination(url) {
+  const limit = Math.min(
+    Math.max(parseInt(url.searchParams.get('limit') || String(DEFAULT_PAGE_LIMIT), 10), 1),
+    MAX_PAGE_LIMIT
+  );
+  const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0);
+  return { limit, offset };
+}
+
 async function handleOptions(request, CONFIG) {
   const origin = request.headers.get('Origin');
   const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Cron-Secret',
-    'Access-Control-Max-Age': '86400'
+    'Access-Control-Max-Age': '86400',
   };
-  
+
   if (CONFIG.CORS_ALLOWED_ORIGINS) {
     if (origin && CONFIG.CORS_ALLOWED_ORIGINS.includes(origin)) {
       headers['Access-Control-Allow-Origin'] = origin;
       headers['Vary'] = 'Origin';
-    } else {
-      return new Response('Forbidden', { status: 403 });
     }
   } else {
     headers['Access-Control-Allow-Origin'] = '*';
   }
-  
+
   return new Response(null, { headers });
 }
 
 async function handleUpload(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
-  
+
   try {
-    const storageCheck = await env.DB.prepare(
-      'SELECT COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
-    ).bind(new Date().toISOString()).first();
-
-    if (storageCheck.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
-      return jsonResponse({
-        error: '存储空间已满，请等待过期文件自动清理后再试',
-        storageFull: true
-      }, 429, origin, CONFIG);
-    }
-
     const formData = await request.formData();
     const file = formData.get('file');
     const rawUserTag = formData.get('user_tag');
@@ -241,10 +348,7 @@ async function handleUpload(request, env, CONFIG) {
     }
 
     if (!CONFIG.ALLOWED_TYPES.includes(file.type)) {
-      const allowedDisplay = CONFIG.ALLOWED_TYPES.map(t => {
-        const ext = getFileExtension(t);
-        return ext.toUpperCase();
-      }).join('、');
+      const allowedDisplay = CONFIG.ALLOWED_TYPES.map(t => getFileExtension(t).toUpperCase()).join('、');
       return jsonResponse({ error: `不支持的文件类型，仅支持：${allowedDisplay}` }, 400, origin, CONFIG);
     }
 
@@ -253,50 +357,88 @@ async function handleUpload(request, env, CONFIG) {
       return jsonResponse({ error: `文件大小超过${maxMB}MB限制` }, 400, origin, CONFIG);
     }
 
+    if (file.type === 'image/svg+xml') {
+      const svgText = await file.text();
+      if (!verifySvgContent(svgText)) {
+        return jsonResponse({ error: 'SVG文件包含不安全内容（脚本或事件处理器）' }, 400, origin, CONFIG);
+      }
+      if (!await verifyFileSignature(file, file.type)) {
+        return jsonResponse({ error: '文件内容与声明类型不匹配' }, 400, origin, CONFIG);
+      }
+
+      const storageCheck = await env.DB.prepare(
+        'SELECT COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
+      ).bind(new Date().toISOString()).first();
+
+      if (storageCheck.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
+        return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
+      }
+
+      const fileName = generateFileName(file.type);
+      const timestamp = Date.now();
+      const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
+
+      try {
+        await env.R2_BUCKET.put(fileName, svgText, {
+          httpMetadata: { contentType: file.type, cacheControl: `public, max-age=${CONFIG.CACHE_MAX_AGE}` },
+          customMetadata: { userTag },
+        });
+      } catch {
+        return jsonResponse({ error: '文件存储失败，请稍后重试' }, 500, origin, CONFIG);
+      }
+
+      await env.DB.prepare(
+        'INSERT INTO images (filename, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind(fileName, file.size, userTag, expireAt, new Date(timestamp).toISOString()).run();
+
+      const imageUrl = `${CONFIG.R2_PUBLIC_DOMAIN}/${fileName}`;
+      return jsonResponse({
+        success: true,
+        url: imageUrl,
+        markdown: `![文件](${imageUrl})`,
+        html: `<img src="${escapeHtml(imageUrl)}" alt="flyimg">`,
+        expireAt,
+        expireHours: CONFIG.EXPIRE_HOURS,
+      }, 200, origin, CONFIG);
+    }
+
     if (!await verifyFileSignature(file, file.type)) {
       return jsonResponse({ error: '文件内容与声明类型不匹配，可能存在安全风险' }, 400, origin, CONFIG);
     }
 
+    const storageCheck = await env.DB.prepare(
+      'SELECT COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
+    ).bind(new Date().toISOString()).first();
+
+    if (storageCheck.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
+      return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
+    }
+
     const fileName = generateFileName(file.type);
     const timestamp = Date.now();
-    const expireAt = timestamp + CONFIG.EXPIRE_HOURS * 60 * 60 * 1000;
-    const expireAtISO = new Date(expireAt).toISOString();
-    const cacheControl = `public, max-age=${CONFIG.CACHE_MAX_AGE}`;
+    const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 
     try {
       await env.R2_BUCKET.put(fileName, file.stream(), {
-        httpMetadata: {
-          contentType: file.type,
-          cacheControl: cacheControl
-        },
-        customMetadata: {
-          userTag: userTag
-        }
+        httpMetadata: { contentType: file.type, cacheControl: `public, max-age=${CONFIG.CACHE_MAX_AGE}` },
+        customMetadata: { userTag },
       });
-    } catch (r2Error) {
-      console.error('R2 upload failed:', r2Error);
+    } catch {
       return jsonResponse({ error: '文件存储失败，请稍后重试' }, 500, origin, CONFIG);
     }
 
     await env.DB.prepare(
       'INSERT INTO images (filename, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(
-      fileName,
-      file.size,
-      userTag,
-      expireAtISO,
-      new Date(timestamp).toISOString()
-    ).run();
+    ).bind(fileName, file.size, userTag, expireAt, new Date(timestamp).toISOString()).run();
 
     const imageUrl = `${CONFIG.R2_PUBLIC_DOMAIN}/${fileName}`;
-
     return jsonResponse({
       success: true,
       url: imageUrl,
       markdown: `![文件](${imageUrl})`,
-      html: `<img src="${imageUrl}" alt="flyimg">`,
-      expireAt: expireAtISO,
-      expireHours: CONFIG.EXPIRE_HOURS
+      html: `<img src="${escapeHtml(imageUrl)}" alt="flyimg">`,
+      expireAt,
+      expireHours: CONFIG.EXPIRE_HOURS,
     }, 200, origin, CONFIG);
 
   } catch (error) {
@@ -308,31 +450,40 @@ async function handleUpload(request, env, CONFIG) {
 async function handleMyImages(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
   const url = new URL(request.url);
-  
+
   try {
     const rawUserTag = url.searchParams.get('user_tag');
     const userTag = sanitizeUserTag(rawUserTag);
-    
+
     if (userTag === 'default' && rawUserTag && rawUserTag !== 'default') {
       return jsonResponse({ error: '用户名只能包含字母、数字、下划线、横线和中文，最长32个字符' }, 400, origin, CONFIG);
     }
 
     const now = new Date().toISOString();
+    const { limit, offset } = parsePagination(url);
+
+    const countResult = await env.DB.prepare(
+      'SELECT COUNT(*) as total FROM images WHERE user_tag = ? AND expire_at > ?'
+    ).bind(userTag, now).first();
+
     const { results } = await env.DB.prepare(
-      'SELECT filename, size, renew_count, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC'
-    ).bind(userTag, now).all();
+      'SELECT filename, size, renew_count, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    ).bind(userTag, now, limit, offset).all();
 
     return jsonResponse({
       success: true,
       images: results.map(img => ({
         ...img,
         url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
-        expired: false
+        expired: false,
       })),
-      renew_config: {
-        max_count: CONFIG.MAX_RENEW_COUNT,
-        durations: CONFIG.RENEW_DURATIONS
-      }
+      pagination: {
+        total: countResult.total,
+        limit,
+        offset,
+        hasMore: offset + results.length < countResult.total,
+      },
+      renew_config: { max_count: CONFIG.MAX_RENEW_COUNT, durations: CONFIG.RENEW_DURATIONS },
     }, 200, origin, CONFIG);
 
   } catch (error) {
@@ -343,35 +494,45 @@ async function handleMyImages(request, env, CONFIG) {
 
 async function handleAllImages(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
-  
+
   if (!await verifyAdmin(request, CONFIG)) {
     return jsonResponse({ error: '未授权，请提供有效的X-Cron-Secret' }, 401, origin, CONFIG);
   }
 
   try {
+    const url = new URL(request.url);
     const now = new Date().toISOString();
+    const { limit, offset } = parsePagination(url);
+
+    const countResult = await env.DB.prepare(
+      'SELECT COUNT(*) as total FROM images'
+    ).first();
+
     const { results } = await env.DB.prepare(
-      'SELECT filename, size, user_tag, renew_count, expire_at, created_at FROM images ORDER BY created_at DESC'
-    ).all();
+      'SELECT filename, size, user_tag, renew_count, expire_at, created_at FROM images ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    ).bind(limit, offset).all();
 
     const storageInfo = await getStorageInfo(env.DB, now);
-    const maxStorageFormatted = formatBytes(CONFIG.MAX_STORAGE_SIZE);
 
     return jsonResponse({
       success: true,
       images: results.map(img => ({
         ...img,
         url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
-        expired: img.expire_at < now
+        expired: img.expire_at < now,
       })),
-      renew_config: {
-        max_count: CONFIG.MAX_RENEW_COUNT,
-        durations: CONFIG.RENEW_DURATIONS
+      pagination: {
+        total: countResult.total,
+        limit,
+        offset,
+        hasMore: offset + results.length < countResult.total,
       },
+      renew_config: { max_count: CONFIG.MAX_RENEW_COUNT, durations: CONFIG.RENEW_DURATIONS },
       storage_info: {
-        maxStorageFormatted,
-        maxStorageSize: CONFIG.MAX_STORAGE_SIZE
-      }
+        maxStorageFormatted: formatBytes(CONFIG.MAX_STORAGE_SIZE),
+        maxStorageSize: CONFIG.MAX_STORAGE_SIZE,
+        ...storageInfo,
+      },
     }, 200, origin, CONFIG);
 
   } catch (error) {
@@ -382,7 +543,7 @@ async function handleAllImages(request, env, CONFIG) {
 
 async function handleDelete(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
-  
+
   if (!await verifyAdmin(request, CONFIG)) {
     return jsonResponse({ error: '未授权，请提供有效的X-Cron-Secret' }, 401, origin, CONFIG);
   }
@@ -394,7 +555,7 @@ async function handleDelete(request, env, CONFIG) {
     } catch {
       return jsonResponse({ error: '无效的请求体' }, 400, origin, CONFIG);
     }
-    
+
     const { filename } = body;
     if (!filename) {
       return jsonResponse({ error: '缺少filename参数' }, 400, origin, CONFIG);
@@ -404,18 +565,11 @@ async function handleDelete(request, env, CONFIG) {
       return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
     }
 
-    try {
-      await env.R2_BUCKET.delete(filename);
-    } catch (r2Error) {
-      console.error('R2 delete failed:', r2Error);
-    }
+    try { await env.R2_BUCKET.delete(filename); } catch {}
 
     await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(filename).run();
 
-    return jsonResponse({
-      success: true,
-      message: '文件已删除'
-    }, 200, origin, CONFIG);
+    return jsonResponse({ success: true, message: '文件已删除' }, 200, origin, CONFIG);
 
   } catch (error) {
     console.error('Delete failed:', error);
@@ -425,18 +579,14 @@ async function handleDelete(request, env, CONFIG) {
 
 async function handleClean(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
-  
+
   if (!await verifyAdmin(request, CONFIG)) {
     return jsonResponse({ error: '未授权，请提供有效的X-Cron-Secret' }, 401, origin, CONFIG);
   }
 
   try {
     const deletedCount = await cleanupExpiredFiles(env);
-    return jsonResponse({
-      success: true,
-      message: `清理完成，删除了${deletedCount}个过期文件`
-    }, 200, origin, CONFIG);
-
+    return jsonResponse({ success: true, message: `清理完成，删除了${deletedCount}个过期文件` }, 200, origin, CONFIG);
   } catch (error) {
     console.error('Clean failed:', error);
     return jsonResponse({ error: '清理失败，请稍后重试' }, 500, origin, CONFIG);
@@ -445,10 +595,9 @@ async function handleClean(request, env, CONFIG) {
 
 async function handleStats(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
-  
+
   try {
     const storageInfo = await getStorageInfo(env.DB);
-    const maxStorageFormatted = formatBytes(CONFIG.MAX_STORAGE_SIZE);
     const usagePercent = Math.round((storageInfo.totalSize / CONFIG.MAX_STORAGE_SIZE) * 100);
 
     return jsonResponse({
@@ -457,9 +606,9 @@ async function handleStats(request, env, CONFIG) {
       totalSize: storageInfo.totalSize,
       formattedSize: storageInfo.formattedSize,
       maxStorageSize: CONFIG.MAX_STORAGE_SIZE,
-      maxStorageFormatted: maxStorageFormatted,
-      usagePercent: usagePercent,
-      isFull: storageInfo.totalSize >= CONFIG.MAX_STORAGE_SIZE
+      maxStorageFormatted: formatBytes(CONFIG.MAX_STORAGE_SIZE),
+      usagePercent,
+      isFull: storageInfo.totalSize >= CONFIG.MAX_STORAGE_SIZE,
     }, 200, origin, CONFIG);
 
   } catch (error) {
@@ -471,7 +620,7 @@ async function handleStats(request, env, CONFIG) {
 async function handleRenew(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
   const isAdmin = await verifyAdmin(request, CONFIG);
-  
+
   try {
     let body;
     try {
@@ -479,38 +628,38 @@ async function handleRenew(request, env, CONFIG) {
     } catch {
       return jsonResponse({ error: '无效的请求体' }, 400, origin, CONFIG);
     }
-    
+
     const { filename, duration, user_tag } = body;
-    
+
     if (!filename) {
       return jsonResponse({ error: '缺少filename参数' }, 400, origin, CONFIG);
     }
-    
+
     if (!/^[a-zA-Z0-9_\-.]+$/.test(filename)) {
       return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
     }
-    
+
     if (duration === undefined || duration === null) {
       return jsonResponse({ error: '缺少duration参数' }, 400, origin, CONFIG);
     }
-    
+
     const durationMinutes = parseInt(duration, 10);
     if (isNaN(durationMinutes) || durationMinutes < 0) {
       return jsonResponse({ error: '无效的续期时长' }, 400, origin, CONFIG);
     }
-    
+
     if (!CONFIG.RENEW_DURATIONS.includes(durationMinutes)) {
       return jsonResponse({ error: '不支持的续期时长' }, 400, origin, CONFIG);
     }
-    
+
     const image = await env.DB.prepare(
       'SELECT filename, user_tag, renew_count FROM images WHERE filename = ?'
     ).bind(filename).first();
-    
+
     if (!image) {
       return jsonResponse({ error: '文件不存在' }, 404, origin, CONFIG);
     }
-    
+
     if (!isAdmin) {
       const userTag = sanitizeUserTag(user_tag);
       if (userTag !== image.user_tag) {
@@ -520,26 +669,23 @@ async function handleRenew(request, env, CONFIG) {
         return jsonResponse({ error: `续期次数已达上限（${CONFIG.MAX_RENEW_COUNT}次）` }, 400, origin, CONFIG);
       }
     }
-    
-    let newExpireAt;
-    if (durationMinutes === 0) {
-      newExpireAt = new Date('2099-12-31T23:59:59Z').toISOString();
-    } else {
-      newExpireAt = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
-    }
-    
+
+    const newExpireAt = durationMinutes === 0
+      ? PERMANENT_EXPIRY
+      : new Date(Date.now() + durationMinutes * 60000).toISOString();
+
     await env.DB.prepare(
       'UPDATE images SET expire_at = ?, renew_count = renew_count + 1 WHERE filename = ?'
     ).bind(newExpireAt, filename).run();
-    
+
     return jsonResponse({
       success: true,
       message: durationMinutes === 0 ? '已设为永不过期' : `续期成功，新过期时间：${newExpireAt}`,
       expire_at: newExpireAt,
       renew_count: image.renew_count + 1,
-      max_renew_count: CONFIG.MAX_RENEW_COUNT
+      max_renew_count: CONFIG.MAX_RENEW_COUNT,
     }, 200, origin, CONFIG);
-    
+
   } catch (error) {
     console.error('Renew failed:', error);
     return jsonResponse({ error: '续期失败，请稍后重试' }, 500, origin, CONFIG);
@@ -561,85 +707,101 @@ async function cleanupExpiredFiles(env) {
   return results.length;
 }
 
-async function getStorageInfo(db) {
-  const now = new Date().toISOString();
+async function getStorageInfo(db, now) {
+  const isoNow = now || new Date().toISOString();
   const result = await db.prepare(
     'SELECT COUNT(*) as totalFiles, COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
-  ).bind(now).first();
+  ).bind(isoNow).first();
 
   return {
     totalFiles: result.totalFiles,
     totalSize: result.totalSize,
-    formattedSize: formatBytes(result.totalSize)
+    formattedSize: formatBytes(result.totalSize),
   };
 }
 
-function formatBytes(bytes, decimals = 2) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+function addSecurityHeaders(response) {
+  const headers = new Headers(response.headers);
+  const contentType = headers.get('Content-Type') || '';
+
+  if (contentType.includes('text/html')) {
+    headers.set('Content-Security-Policy',
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
+      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+      "img-src * data: blob:; " +
+      "font-src https://cdn.jsdelivr.net; " +
+      "connect-src 'self'; " +
+      "frame-ancestors 'none'; " +
+      "base-uri 'self'; " +
+      "form-action 'self'"
+    );
+    headers.set('X-Frame-Options', 'DENY');
+    headers.set('X-Content-Type-Options', 'nosniff');
+    headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 export default {
   async fetch(request, env, ctx) {
-    cachedConfig = null;
     const CONFIG = getConfig(env);
     const url = new URL(request.url);
-    
+    const origin = request.headers.get('Origin');
+
     if (isAPIRequest(url.pathname)) {
       if (request.method === 'OPTIONS') {
         return handleOptions(request, CONFIG);
       }
-      
-      const origin = request.headers.get('Origin');
-      
-      if (url.pathname === '/upload' && request.method === 'POST') {
-        return handleUpload(request, env, CONFIG);
+
+      const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const rateLimitType = url.pathname === '/upload' ? 'upload' : 'api';
+      if (!checkRateLimit(clientIp, rateLimitType)) {
+        return jsonResponse({ error: '请求过于频繁，请稍后再试' }, 429, origin, CONFIG);
       }
-      
-      if (url.pathname === '/my-images' && request.method === 'GET') {
-        return handleMyImages(request, env, CONFIG);
+
+      const exactRoute = API_ROUTES.find(route => url.pathname === route);
+      if (exactRoute) {
+        const allowedMethod = ROUTE_METHODS[exactRoute];
+        if (request.method !== allowedMethod) {
+          return jsonResponse({ error: 'Method Not Allowed' }, 405, origin, CONFIG, {
+            'Allow': allowedMethod,
+          });
+        }
       }
-      
-      if (url.pathname === '/all-images' && request.method === 'GET') {
-        return handleAllImages(request, env, CONFIG);
-      }
-      
-      if (url.pathname === '/delete' && request.method === 'POST') {
-        return handleDelete(request, env, CONFIG);
-      }
-      
-      if (url.pathname === '/clean' && request.method === 'POST') {
-        return handleClean(request, env, CONFIG);
-      }
-      
-      if (url.pathname === '/stats' && request.method === 'GET') {
-        return handleStats(request, env, CONFIG);
-      }
-      
-      if (url.pathname === '/renew' && request.method === 'POST') {
-        return handleRenew(request, env, CONFIG);
-      }
-      
+
+      if (url.pathname === '/upload') return handleUpload(request, env, CONFIG);
+      if (url.pathname === '/my-images') return handleMyImages(request, env, CONFIG);
+      if (url.pathname === '/all-images') return handleAllImages(request, env, CONFIG);
+      if (url.pathname === '/delete') return handleDelete(request, env, CONFIG);
+      if (url.pathname === '/clean') return handleClean(request, env, CONFIG);
+      if (url.pathname === '/stats') return handleStats(request, env, CONFIG);
+      if (url.pathname === '/renew') return handleRenew(request, env, CONFIG);
+
       return jsonResponse({ error: 'Not Found' }, 404, origin, CONFIG);
     }
-    
+
     if (isUserTagRoute(url.pathname)) {
       const assetUrl = new URL(url.origin);
       assetUrl.pathname = '/user/index.html';
-      return env.ASSETS.fetch(new Request(assetUrl.toString(), {
+      const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), {
         method: 'GET',
-        headers: { 'Accept': 'text/html' }
+        headers: { 'Accept': 'text/html' },
       }));
+      return addSecurityHeaders(assetResponse);
     }
-    
-    return env.ASSETS.fetch(request);
+
+    const assetResponse = await env.ASSETS.fetch(request);
+    return addSecurityHeaders(assetResponse);
   },
 
   async scheduled(event, env, ctx) {
+    cleanupRateLimits();
     ctx.waitUntil(
       cleanupExpiredFiles(env)
         .then(count => console.log(`Cleanup completed: ${count} expired files deleted`))

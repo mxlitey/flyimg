@@ -15,26 +15,3 @@
 .theme-input {
   transition: background-color 0.3s, border-color 0.3s, color 0.3s;
 }
-
-.dark .theme-input {
-  background-color: #334155;
-  border-color: #475569;
-  color: #ffffff;
-}
-
-.theme-input:not(.dark *) {
-  background-color: #f9fafb;
-  border-color: #d1d5db;
-  color: #111827;
-}
-
-.toast {
-  transform: translateY(5rem);
-  opacity: 0;
-  transition: all 0.3s ease;
-}
-
-.toast.show {
-  transform: translateY(0);
-  opacity: 1;
-}
