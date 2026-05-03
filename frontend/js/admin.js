@@ -392,21 +392,21 @@ const Admin = {
     const modalHtml = `
       <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
-          <h3 class="text-lg font-semibold mb-2 text-gray-900 dark:text-white">续期资源（管理员）</h3>
-          <p class="text-sm text-gray-800 dark:text-gray-300 mb-2">
-            文件: <span class="font-mono text-gray-900 dark:text-white">${Utils.escapeHtml(img.filename)}</span>
+          <h3 class="text-lg font-semibold mb-2 text-black dark:text-white">续期资源（管理员）</h3>
+          <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">
+            文件: <span class="font-mono text-black dark:text-white">${Utils.escapeHtml(img.filename)}</span>
           </p>
-          <p class="text-sm text-gray-800 dark:text-gray-300 mb-4">
-            已续期次数: <span class="font-medium text-gray-900 dark:text-white">${currentCount}</span>（管理员无限制）
+          <p class="text-sm text-gray-700 dark:text-gray-300 mb-4">
+            已续期次数: <span class="font-medium text-black dark:text-white">${currentCount}</span>（管理员无限制）
           </p>
           <div class="mb-4">
-            <label class="block text-sm text-gray-800 dark:text-gray-200 mb-2 font-medium">选择续期时长</label>
+            <label class="block text-sm text-gray-700 dark:text-gray-200 mb-2 font-medium">选择续期时长</label>
             <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
               ${durationOptions}
             </select>
           </div>
           <div class="flex gap-3">
-            <button id="renew-cancel" class="flex-1 bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors">取消</button>
+            <button id="renew-cancel" class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">取消</button>
             <button id="renew-confirm" class="flex-1 bg-success text-white px-4 py-2 rounded-lg hover:bg-success/90 transition-colors">确认续期</button>
           </div>
         </div>
