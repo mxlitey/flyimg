@@ -293,7 +293,7 @@ async function handleUpload(request, env, CONFIG) {
     return jsonResponse({
       success: true,
       url: imageUrl,
-      markdown: `![图片](${imageUrl})`,
+      markdown: `![文件](${imageUrl})`,
       html: `<img src="${imageUrl}" alt="flyimg">`,
       expireAt: expireAtISO,
       expireHours: CONFIG.EXPIRE_HOURS
@@ -427,7 +427,7 @@ async function handleClean(request, env, CONFIG) {
     const deletedCount = await cleanupExpiredFiles(env);
     return jsonResponse({
       success: true,
-      message: `清理完成，删除了${deletedCount}张过期图片`
+      message: `清理完成，删除了${deletedCount}个过期文件`
     }, 200, origin, CONFIG);
 
   } catch (error) {
@@ -509,10 +509,9 @@ async function handleRenew(request, env, CONFIG) {
       if (userTag !== image.user_tag) {
         return jsonResponse({ error: '无权限续期此文件' }, 403, origin, CONFIG);
       }
-    }
-    
-    if (image.renew_count >= CONFIG.MAX_RENEW_COUNT) {
-      return jsonResponse({ error: `续期次数已达上限（${CONFIG.MAX_RENEW_COUNT}次）` }, 400, origin, CONFIG);
+      if (image.renew_count >= CONFIG.MAX_RENEW_COUNT) {
+        return jsonResponse({ error: `续期次数已达上限（${CONFIG.MAX_RENEW_COUNT}次）` }, 400, origin, CONFIG);
+      }
     }
     
     let newExpireAt;

@@ -138,7 +138,6 @@ const Admin = {
     const displayUrl = Utils.escapeHtml(img.url || '');
     const isChecked = this.selectedFilenames.has(img.filename) ? 'checked' : '';
     const renewCount = img.renew_count || 0;
-    const canRenew = renewCount < this.renewConfig.max_count;
     const renewBadge = renewCount > 0 
       ? `<span class="text-xs text-gray-500">(已续${renewCount}次)</span>` 
       : '';
@@ -146,7 +145,7 @@ const Admin = {
     row.className = `${Theme.getCardClass()} rounded-xl p-4 flex items-center space-x-4 ${isExpired ? 'border-l-4 border-danger' : 'border-l-4 border-success'}`;
     row.innerHTML = `
       <input type="checkbox" class="admin-file-checkbox w-4 h-4 flex-shrink-0 cursor-pointer accent-primary" data-filename="${displayFilename}" ${isChecked}>
-      <img src="${displayUrl}" alt="图片" class="w-16 h-16 object-cover rounded-lg ${isExpired ? 'opacity-50' : ''}" loading="lazy"
+      <img src="${displayUrl}" alt="资源" class="w-16 h-16 object-cover rounded-lg ${isExpired ? 'opacity-50' : ''}" loading="lazy"
            onerror="this.style.display='none'">
       <div class="flex-grow min-w-0">
         <p class="text-sm font-mono truncate text-gray-300">${displayFilename}</p>
@@ -154,9 +153,9 @@ const Admin = {
         <p class="text-xs ${isExpired ? 'text-danger' : 'text-success'}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
       </div>
       <div class="flex gap-2 flex-shrink-0">
-        ${canRenew ? `<button class="btn-renew bg-success/20 text-success px-3 py-2 rounded-lg hover:bg-success/30 transition-colors text-sm" data-filename="${safeFilename}">
+        <button class="btn-renew bg-success/20 text-success px-3 py-2 rounded-lg hover:bg-success/30 transition-colors text-sm" data-filename="${safeFilename}">
           <i class="fa fa-clock-o"></i>
-        </button>` : ''}
+        </button>
         <button class="btn-delete bg-danger/20 text-danger px-3 py-2 rounded-lg hover:bg-danger/30 transition-colors text-sm" data-filename="${safeFilename}">
           <i class="fa fa-trash"></i>
         </button>
@@ -393,15 +392,15 @@ const Admin = {
     const modalHtml = `
       <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
-          <h3 class="text-lg font-semibold mb-2">续期图片</h3>
-          <p class="text-sm text-gray-400 mb-2">
-            文件: ${Utils.escapeHtml(img.filename)}
+          <h3 class="text-lg font-semibold mb-2">续期资源（管理员）</h3>
+          <p class="text-sm text-gray-300 mb-2">
+            文件: <span class="font-mono text-white">${Utils.escapeHtml(img.filename)}</span>
           </p>
-          <p class="text-sm text-gray-400 mb-4">
-            剩余续期次数: ${maxCount - currentCount} / ${maxCount}
+          <p class="text-sm text-gray-300 mb-4">
+            已续期次数: <span class="font-medium text-white">${currentCount}</span>（管理员无限制）
           </p>
           <div class="mb-4">
-            <label class="block text-sm text-gray-300 mb-2">选择续期时长</label>
+            <label class="block text-sm text-gray-200 mb-2 font-medium">选择续期时长</label>
             <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
               ${durationOptions}
             </select>

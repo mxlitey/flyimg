@@ -80,7 +80,7 @@ const UserPage = {
     card.className = `${Theme.getCardClass()} rounded-xl overflow-hidden`;
     card.innerHTML = `
       <div class="relative">
-        <img src="${displayUrl}" alt="图片" class="w-full h-40 object-cover" loading="lazy" onerror="this.style.display='none'">
+        <img src="${displayUrl}" alt="资源" class="w-full h-40 object-cover" loading="lazy" onerror="this.style.display='none'">
       </div>
       <div class="p-3">
         <p class="text-xs text-gray-400 mb-1">${Utils.formatDate(img.created_at)}</p>
@@ -128,12 +128,12 @@ const UserPage = {
     const modalHtml = `
       <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
-          <h3 class="text-lg font-semibold mb-2">续期图片</h3>
-          <p class="text-sm text-gray-400 mb-4">
-            剩余续期次数：${maxCount - currentCount} / ${maxCount}
+          <h3 class="text-lg font-semibold mb-2">续期资源</h3>
+          <p class="text-sm text-gray-300 mb-4">
+            剩余续期次数：<span class="font-medium text-white">${maxCount - currentCount}</span> / ${maxCount}
           </p>
           <div class="mb-4">
-            <label class="block text-sm text-gray-300 mb-2">选择续期时长</label>
+            <label class="block text-sm text-gray-200 mb-2 font-medium">选择续期时长</label>
             <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
               ${durationOptions}
             </select>
