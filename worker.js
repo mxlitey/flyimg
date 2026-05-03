@@ -238,17 +238,6 @@ async function handleUpload(request, env, CONFIG) {
     const expireAtISO = new Date(expireAt).toISOString();
     const cacheControl = `public, max-age=${CONFIG.CACHE_MAX_AGE}`;
 
-    await env.DB.prepare(
-      'INSERT INTO images (filename, url, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(
-      fileName,
-      '',
-      file.size,
-      userTag,
-      expireAtISO,
-      new Date(timestamp).toISOString()
-    ).run();
-
     try {
       await env.R2_BUCKET.put(fileName, file.stream(), {
         httpMetadata: {
@@ -260,14 +249,21 @@ async function handleUpload(request, env, CONFIG) {
         }
       });
     } catch (r2Error) {
-      await env.DB.prepare('DELETE FROM images WHERE filename = ?').bind(fileName).run();
       console.error('R2 upload failed:', r2Error);
       return jsonResponse({ error: '文件存储失败，请稍后重试' }, 500, origin, CONFIG);
     }
 
-    const imageUrl = `${CONFIG.R2_PUBLIC_DOMAIN}/${fileName}`;
+    await env.DB.prepare(
+      'INSERT INTO images (filename, size, user_tag, expire_at, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(
+      fileName,
+      file.size,
+      userTag,
+      expireAtISO,
+      new Date(timestamp).toISOString()
+    ).run();
 
-    await env.DB.prepare('UPDATE images SET url = ? WHERE filename = ?').bind(imageUrl, fileName).run();
+    const imageUrl = `${CONFIG.R2_PUBLIC_DOMAIN}/${fileName}`;
 
     return jsonResponse({
       success: true,
@@ -298,13 +294,14 @@ async function handleMyImages(request, env, CONFIG) {
 
     const now = new Date().toISOString();
     const { results } = await env.DB.prepare(
-      'SELECT filename, url, size, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC'
+      'SELECT filename, size, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC'
     ).bind(userTag, now).all();
 
     return jsonResponse({
       success: true,
       images: results.map(img => ({
         ...img,
+        url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
         expired: false
       }))
     }, 200, origin, CONFIG);
@@ -325,13 +322,14 @@ async function handleAllImages(request, env, CONFIG) {
   try {
     const now = new Date().toISOString();
     const { results } = await env.DB.prepare(
-      'SELECT filename, url, size, user_tag, expire_at, created_at FROM images ORDER BY created_at DESC'
+      'SELECT filename, size, user_tag, expire_at, created_at FROM images ORDER BY created_at DESC'
     ).all();
 
     return jsonResponse({
       success: true,
       images: results.map(img => ({
         ...img,
+        url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
         expired: img.expire_at < now
       }))
     }, 200, origin, CONFIG);
@@ -507,58 +505,7 @@ export default {
       return jsonResponse({ error: 'Not Found' }, 404, origin, CONFIG);
     }
     
-    if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
-      const indexRequest = new Request(new URL('/index.html', url.origin), request);
-      const response = await env.ASSETS.fetch(indexRequest);
-      
-      const injectScript = `<script>window.PAGE_MODE="admin";</script>`;
-      
-      return new HTMLRewriter()
-        .on('head', {
-          element(element) {
-            element.append(injectScript, { html: true });
-          }
-        })
-        .on('body', {
-          element(element) {
-            element.removeAttribute('class');
-          }
-        })
-        .transform(response);
-    }
-    
-    if (url.pathname !== '/' && !url.pathname.startsWith('/api/') && !isStaticAsset(url.pathname)) {
-      const userTag = url.pathname.substring(1);
-      if (userTag && !userTag.includes('/')) {
-        const indexRequest = new Request(new URL('/index.html', url.origin), request);
-        const response = await env.ASSETS.fetch(indexRequest);
-        
-        const escapedTag = userTag.replace(/"/g, '\\"').replace(/</g, '\\x3C').replace(/>/g, '\\x3E');
-        const injectScript = `<script>window.PAGE_MODE="user";window.USER_TAG="${escapedTag}";</script>`;
-        
-        return new HTMLRewriter()
-          .on('head', {
-            element(element) {
-              element.append(injectScript, { html: true });
-            }
-          })
-          .on('body', {
-            element(element) {
-              element.removeAttribute('class');
-            }
-          })
-          .transform(response);
-      }
-    }
-    
-    const assetResponse = await env.ASSETS.fetch(request);
-    
-    if (assetResponse.status === 404 && !isStaticAsset(url.pathname)) {
-      const indexRequest = new Request(new URL('/index.html', url.origin), request);
-      return env.ASSETS.fetch(indexRequest);
-    }
-    
-    return assetResponse;
+    return env.ASSETS.fetch(request);
   },
 
   async scheduled(event, env, ctx) {

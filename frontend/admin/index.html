@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - Flyimg</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            dark: { 900: '#0f172a', 800: '#1e293b', 700: '#334155', 600: '#475569' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="min-h-screen flex flex-col transition-colors duration-300 bg-gradient-to-b from-dark-900 to-dark-800 text-white dark">
+  <nav class="sticky top-0 z-50 glass">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <a href="../" class="flex items-center">
+            <img src="../favicon.png" alt="Logo" class="w-10 h-10 mr-3">
+            <span class="text-xl font-bold">Flyimg</span>
+            <span class="ml-2 text-sm text-gray-400">管理后台</span>
+          </a>
+        </div>
+        <div class="flex items-center space-x-2">
+          <a href="../" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+            <i class="fa fa-home mr-1"></i>返回首页
+          </a>
+          <button id="theme-toggle" class="p-2 rounded-lg hover:bg-white/10 transition-colors">
+            <svg id="theme-icon-moon" class="hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg id="theme-icon-light" class="hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-grow max-w-4xl mx-auto px-4 py-8 w-full">
+    <div id="admin-login" class="glass rounded-2xl p-8 mb-8 max-w-md mx-auto">
+      <h2 class="text-xl font-semibold mb-4 text-center">管理员登录</h2>
+      <div class="space-y-4">
+        <input type="password" id="admin-token-input" placeholder="输入管理密钥（CRON_SECRET）"
+          class="theme-input w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+        <button onclick="adminLogin()" class="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium">
+          <i class="fa fa-sign-in mr-2"></i>登录
+        </button>
+      </div>
+    </div>
+
+    <div id="admin-panel" class="hidden">
+      <div class="flex flex-wrap gap-3 mb-4 justify-center">
+        <button onclick="loadAllImages()" class="bg-primary text-white px-5 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm">
+          <i class="fa fa-refresh mr-1"></i>刷新列表
+        </button>
+        <button onclick="cleanExpired()" class="bg-danger text-white px-5 py-2 rounded-lg hover:bg-danger/90 transition-colors text-sm">
+          <i class="fa fa-trash mr-1"></i>清理过期文件
+        </button>
+        <button onclick="adminLogout()" class="bg-gray-600 text-white px-5 py-2 rounded-lg hover:bg-gray-500 transition-colors text-sm">
+          <i class="fa fa-sign-out mr-1"></i>退出
+        </button>
+      </div>
+
+      <div class="flex flex-wrap gap-3 mb-4 justify-center items-center">
+        <select id="admin-user-filter" onchange="filterByUser()" class="theme-input px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+          <option value="">全部用户</option>
+        </select>
+        <button onclick="deleteByUser()" class="bg-warning text-white px-4 py-2 rounded-lg hover:bg-warning/90 transition-colors text-sm">
+          <i class="fa fa-user-times mr-1"></i>删除该用户所有文件
+        </button>
+        <button onclick="toggleSelectAll()" id="btn-select-all" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition-colors text-sm">
+          <i class="fa fa-check-square mr-1"></i>全选
+        </button>
+        <button onclick="batchDelete()" id="btn-batch-delete" class="bg-danger text-white px-4 py-2 rounded-lg hover:bg-danger/90 transition-colors text-sm opacity-50 cursor-not-allowed" disabled>
+          <i class="fa fa-trash-o mr-1"></i>批量删除 (<span id="selected-count">0</span>)
+        </button>
+      </div>
+
+      <div id="admin-stats" class="glass rounded-xl p-4 mb-6">
+        <div class="flex justify-around text-center">
+          <div>
+            <p class="text-2xl font-bold text-primary" id="stat-total">0</p>
+            <p class="text-xs text-gray-400">总文件数</p>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-warning" id="stat-expired">0</p>
+            <p class="text-xs text-gray-400">已过期</p>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-success" id="stat-active">0</p>
+            <p class="text-xs text-gray-400">有效文件</p>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-primary" id="stat-used-space">0 B</p>
+            <p class="text-xs text-gray-400">已用空间</p>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-gray-400" id="stat-total-space">1000 MB</p>
+            <p class="text-xs text-gray-400">总空间</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="admin-images-loading" class="text-center py-12 hidden">
+        <i class="fa fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+        <p class="text-gray-400">加载中...</p>
+      </div>
+      <div id="admin-images-grid" class="space-y-3"></div>
+    </div>
+  </main>
+
+  <footer class="glass py-6 mt-auto">
+    <div class="max-w-4xl mx-auto px-4 text-center text-gray-400">
+      <p>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
+    </div>
+  </footer>
+
+  <div id="toast" class="fixed bottom-6 right-6 bg-dark-700 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50"></div>
+
+  <div id="confirm-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden">
+    <div class="glass rounded-2xl p-8 max-w-sm mx-4">
+      <h3 class="text-lg font-semibold mb-4" id="confirm-title">确认操作</h3>
+      <p class="text-gray-400 mb-6" id="confirm-message"></p>
+      <div class="flex space-x-3">
+        <button onclick="confirmAction(false)" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">取消</button>
+        <button onclick="confirmAction(true)" class="flex-1 bg-danger text-white px-4 py-2 rounded-lg hover:bg-danger/90 transition-colors">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/common.js"></script>
+  <script src="../js/admin.js"></script>
+</body>
+</html>

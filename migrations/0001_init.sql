@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS images (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   filename TEXT NOT NULL,
-  url TEXT NOT NULL,
   size INTEGER NOT NULL,
   user_tag TEXT NOT NULL DEFAULT 'default',
   expire_at TEXT NOT NULL,

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户图片 - Flyimg</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            dark: { 900: '#0f172a', 800: '#1e293b', 700: '#334155', 600: '#475569' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="min-h-screen flex flex-col transition-colors duration-300 bg-gradient-to-b from-dark-900 to-dark-800 text-white dark">
+  <nav class="sticky top-0 z-50 glass">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <a href="../" class="flex items-center">
+            <img src="../favicon.png" alt="Logo" class="w-10 h-10 mr-3">
+            <span class="text-xl font-bold">Flyimg</span>
+          </a>
+        </div>
+        <div class="flex items-center space-x-2">
+          <a href="../" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+            <i class="fa fa-cloud-upload mr-1"></i>上传
+          </a>
+          <a href="../admin/" class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+            <i class="fa fa-shield mr-1"></i>管理
+          </a>
+          <button id="theme-toggle" class="p-2 rounded-lg hover:bg-white/10 transition-colors">
+            <svg id="theme-icon-moon" class="hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg id="theme-icon-light" class="hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-grow max-w-4xl mx-auto px-4 py-8 w-full">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold mb-2"><span id="user-tag-display">用户</span> 的图片</h1>
+      <p class="text-gray-400">共 <span id="image-count">0</span> 张图片</p>
+    </div>
+    <div id="images-loading" class="text-center py-12">
+      <i class="fa fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+      <p class="text-gray-400">加载中...</p>
+    </div>
+    <div id="images-empty" class="text-center py-12 hidden">
+      <i class="fa fa-inbox text-6xl text-gray-600 mb-4"></i>
+      <p class="text-gray-400 text-lg">暂无图片</p>
+      <a href="../" class="mt-4 inline-block bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">去上传</a>
+    </div>
+    <div id="images-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
+  </main>
+
+  <footer class="glass py-6 mt-auto">
+    <div class="max-w-4xl mx-auto px-4 text-center text-gray-400">
+      <p>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
+    </div>
+  </footer>
+
+  <div id="toast" class="fixed bottom-6 right-6 bg-dark-700 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50"></div>
+
+  <script src="../js/common.js"></script>
+  <script src="../js/usertag.js"></script>
+</body>
+</html>
