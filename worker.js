@@ -511,10 +511,17 @@ export default {
       const indexRequest = new Request(new URL('/index.html', url.origin), request);
       const response = await env.ASSETS.fetch(indexRequest);
       
+      const injectScript = `<script>window.PAGE_MODE="admin";</script>`;
+      
       return new HTMLRewriter()
+        .on('head', {
+          element(element) {
+            element.append(injectScript, { html: true });
+          }
+        })
         .on('body', {
           element(element) {
-            element.before('<script>window.PAGE_MODE="admin";</script>', { html: true });
+            element.removeAttribute('class');
           }
         })
         .transform(response);
@@ -526,10 +533,18 @@ export default {
         const indexRequest = new Request(new URL('/index.html', url.origin), request);
         const response = await env.ASSETS.fetch(indexRequest);
         
+        const escapedTag = userTag.replace(/"/g, '\\"').replace(/</g, '\\x3C').replace(/>/g, '\\x3E');
+        const injectScript = `<script>window.PAGE_MODE="user";window.USER_TAG="${escapedTag}";</script>`;
+        
         return new HTMLRewriter()
+          .on('head', {
+            element(element) {
+              element.append(injectScript, { html: true });
+            }
+          })
           .on('body', {
             element(element) {
-              element.before(`<script>window.PAGE_MODE="user";window.USER_TAG="${userTag}";</script>`, { html: true });
+              element.removeAttribute('class');
             }
           })
           .transform(response);

@@ -397,6 +397,8 @@
     function initRouter() {
       adminToken = localStorage.getItem('adminToken') || '';
 
+      console.log('PAGE_MODE:', window.PAGE_MODE, 'USER_TAG:', window.USER_TAG);
+
       if (window.PAGE_MODE === 'admin') {
         navigateTo('admin');
         return;
