@@ -524,10 +524,12 @@ export default {
     }
     
     if (isUserTagRoute(url.pathname)) {
-      const userTag = getUserTagFromPath(url.pathname);
-      const assetUrl = new URL('/[usertag]/index.html', url.origin);
-      const assetRequest = new Request(assetUrl, request);
-      return env.ASSETS.fetch(assetRequest);
+      const assetUrl = new URL(url.origin);
+      assetUrl.pathname = '/user/index.html';
+      return env.ASSETS.fetch(new Request(assetUrl.toString(), {
+        method: 'GET',
+        headers: { 'Accept': 'text/html' }
+      }));
     }
     
     return env.ASSETS.fetch(request);
