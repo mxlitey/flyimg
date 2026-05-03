@@ -211,6 +211,9 @@
           <button onclick="cleanExpired()" class="bg-danger text-white px-5 py-2 rounded-lg hover:bg-danger/90 transition-colors text-sm">
             <i class="fa fa-trash mr-1"></i>清理过期文件
           </button>
+          <button onclick="adminLogout()" class="bg-gray-600 text-white px-5 py-2 rounded-lg hover:bg-gray-500 transition-colors text-sm">
+            <i class="fa fa-sign-out mr-1"></i>退出
+          </button>
         </div>
 
         <div class="flex flex-wrap gap-3 mb-4 justify-center items-center">
@@ -401,7 +404,7 @@
         return;
       }
 
-      if (path && path !== 'index.html' && !path.startsWith('api/') && !path.includes('.')) {
+      if (path && path !== 'index.html' && path !== 'admin' && !path.startsWith('admin/') && !path.startsWith('api/') && !path.includes('.')) {
         currentUserTag = decodeURIComponent(path);
         if (currentUserTag !== 'default') {
           document.getElementById('user-tag-input').value = currentUserTag;
@@ -661,6 +664,18 @@
       showAdminPanel();
       updateNavButtons();
       showToast('登录成功');
+    }
+
+    function adminLogout() {
+      adminToken = '';
+      localStorage.removeItem('adminToken');
+      document.getElementById('admin-login').classList.remove('hidden');
+      document.getElementById('admin-panel').classList.add('hidden');
+      document.getElementById('admin-token-input').value = '';
+      adminAllImages = [];
+      selectedFilenames.clear();
+      updateNavButtons();
+      showToast('已退出登录');
     }
 
     function showAdminPanel() {
