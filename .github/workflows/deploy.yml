@@ -101,11 +101,15 @@ jobs:
           wrangler r2 bucket create flyimg 2>/dev/null || true
           echo "✅ R2 bucket ready"
 
-      - name: 🚀 Deploy Worker
+      - name: 🚀 Deploy Worker with Assets
+        id: deploy-worker
         run: |
           DEPLOY_OUTPUT=$(wrangler deploy 2>&1)
           echo "$DEPLOY_OUTPUT"
-          echo "✅ Worker deployed"
+          
+          WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[a-zA-Z0-9_-]+\.workers\.dev' | head -1 || true)
+          echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
+          echo "✅ Worker with Assets deployed: $WORKER_URL"
 
       - name: 🔑 Set Worker Secrets
         run: |
@@ -117,7 +121,7 @@ jobs:
               return
             fi
             BODY=$(jq -n --arg name "$name" --arg text "$value" '{name: $name, text: $text, type: "secret_text"}')
-            curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg-worker/secrets" \
+            curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg/secrets" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
               -H "Content-Type: application/json" \
               -d "$BODY" && echo "  ✅ $name set" || echo "  ⚠️ $name failed"
@@ -139,47 +143,6 @@ jobs:
           ALLOWED_TYPES_VAL: ${{ secrets.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}
           CORS_ALLOWED_ORIGINS_VAL: ${{ secrets.CORS_ALLOWED_ORIGINS }}
 
-      - name: 📝 Generate Frontend Config
-        run: |
-          WORKER_URL="${{ secrets.WORKER_URL }}"
-          WORKER_URL="${WORKER_URL%/}"
-
-          EXPIRE_HOURS="${{ secrets.EXPIRE_HOURS }}"
-          MAX_FILE_SIZE="${{ secrets.MAX_FILE_SIZE }}"
-          MAX_STORAGE_SIZE="${{ secrets.MAX_STORAGE_SIZE }}"
-          EXPIRE_HOURS_VAL="${EXPIRE_HOURS:-12}"
-          MAX_FILE_SIZE_VAL="${MAX_FILE_SIZE:-20}"
-          MAX_STORAGE_SIZE_VAL="${MAX_STORAGE_SIZE:-1000}"
-
-          cat > frontend/config.js << CONFIGEOF
-          const API_BASE = '${WORKER_URL}';
-          const DISPLAY_CONFIG = {
-            expireHours: ${EXPIRE_HOURS_VAL},
-            maxFileSizeMB: ${MAX_FILE_SIZE_VAL},
-            maxStorageSizeMB: ${MAX_STORAGE_SIZE_VAL},
-            allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG',
-          };
-          CONFIGEOF
-          echo "✅ Frontend config generated with Worker URL: $WORKER_URL"
-
-      - name: 🌐 Setup Pages Project
-        run: |
-          curl -sf -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data '{"name":"flyimg","production_branch":"main"}' || true
-          echo "✅ Pages project configured"
-
-      - name: 📤 Deploy Pages
-        id: deploy-pages
-        run: |
-          DEPLOY_OUTPUT=$(wrangler pages deploy frontend --project-name=flyimg --commit-dirty=true 2>&1)
-          echo "$DEPLOY_OUTPUT"
-
-          PAGES_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[a-zA-Z0-9_-]+\.pages\.dev' | head -1 || true)
-          echo "pages_url=$PAGES_URL" >> $GITHUB_OUTPUT
-          echo "✅ Pages deployed: $PAGES_URL"
-
       - name: 📋 Deployment Summary
         if: always()
         run: |
@@ -193,31 +156,30 @@ jobs:
             echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
             echo "| D1 Database (flyimg-db) | ✅ Ready |" >> $GITHUB_STEP_SUMMARY
             echo "| R2 Bucket (flyimg) | ✅ Ready |" >> $GITHUB_STEP_SUMMARY
-            echo "| Worker API | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Worker + Assets | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
             echo "| Worker Secrets | ✅ Configured |" >> $GITHUB_STEP_SUMMARY
-            echo "| Pages Frontend | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            PAGES_URL="${{ steps.deploy-pages.outputs.pages_url }}"
-            WORKER_URL="${{ secrets.WORKER_URL }}"
+            WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
+            R2_DOMAIN="${{ secrets.R2_PUBLIC_DOMAIN }}"
 
             echo "### 🔗 Access URLs" >> $GITHUB_STEP_SUMMARY
-            echo "- **Frontend**: \`${PAGES_URL:-https://flyimg.pages.dev}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Worker API**: \`${WORKER_URL}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Admin Panel**: \`${PAGES_URL:-https://flyimg.pages.dev}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Frontend & API**: \`${WORKER_URL}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Image CDN**: \`${R2_DOMAIN}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Admin Panel**: \`${WORKER_URL}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            echo "### 📌 Next Steps" >> $GITHUB_STEP_SUMMARY
-            echo "1. Go to Cloudflare Dashboard → Workers → flyimg-worker → copy the Worker URL" >> $GITHUB_STEP_SUMMARY
-            echo "2. Update GitHub Secret \`WORKER_URL\` with the actual Worker URL" >> $GITHUB_STEP_SUMMARY
-            echo "3. Re-run this workflow to apply the correct frontend config" >> $GITHUB_STEP_SUMMARY
-            echo "4. Visit the frontend URL to start using the service" >> $GITHUB_STEP_SUMMARY
+            echo "### 📌 Architecture" >> $GITHUB_STEP_SUMMARY
+            echo "Workers + Assets + D1 + R2 - 统一域名部署" >> $GITHUB_STEP_SUMMARY
+            echo "- 静态资源：免费无限制" >> $GITHUB_STEP_SUMMARY
+            echo "- API 请求：正常计费" >> $GITHUB_STEP_SUMMARY
+            echo "- 图片直链：R2 公网访问" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Deployment failed.** Check the logs above for details." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 🔧 Troubleshooting" >> $GITHUB_STEP_SUMMARY
-            echo "1. Verify all 5 GitHub Secrets are correctly set" >> $GITHUB_STEP_SUMMARY
-            echo "2. Check Cloudflare API token has correct permissions (Workers, D1, R2, Pages)" >> $GITHUB_STEP_SUMMARY
+            echo "1. Verify all 4 GitHub Secrets are correctly set" >> $GITHUB_STEP_SUMMARY
+            echo "2. Check Cloudflare API token has correct permissions (Workers, D1, R2)" >> $GITHUB_STEP_SUMMARY
             echo "3. Ensure R2 bucket 'flyimg' has public access enabled" >> $GITHUB_STEP_SUMMARY
             echo "4. Re-run the workflow after fixing issues" >> $GITHUB_STEP_SUMMARY
           fi

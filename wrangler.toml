@@ -1,7 +1,10 @@
-name = "flyimg-worker"
+name = "flyimg"
 main = "worker.js"
 compatibility_date = "2025-02-01"
-workers_dev = true
+
+[assets]
+directory = "frontend"
+binding = "ASSETS"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"

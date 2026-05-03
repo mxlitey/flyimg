@@ -17,8 +17,45 @@ const MIME_TO_EXT = {
   'video/x-msvideo': 'avi'
 };
 
+const API_ROUTES = ['/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images'];
+
+function isAPIRequest(pathname) {
+  return API_ROUTES.some(route => pathname === route || pathname.startsWith(route + '/'));
+}
+
+function isStaticAsset(pathname) {
+  const staticExtensions = ['.html', '.css', '.js', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot'];
+  return staticExtensions.some(ext => pathname.toLowerCase().endsWith(ext));
+}
+
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    
+    if (isAPIRequest(url.pathname)) {
+      return handleAPI(request, env, url);
+    }
+    
+    const assetResponse = await env.ASSETS.fetch(request);
+    
+    if (assetResponse.status === 404 && !isStaticAsset(url.pathname)) {
+      const indexRequest = new Request(new URL('/index.html', url.origin), request);
+      return env.ASSETS.fetch(indexRequest);
+    }
+    
+    return assetResponse;
+  },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      cleanupExpiredFiles(env)
+        .then(count => console.log(`定时清理完成，删除了${count}张过期图片`))
+        .catch(err => console.error('定时清理失败:', err))
+    );
+  }
+};
+
+async function handleAPI(request, env, url) {
     const CONFIG = {
       R2_BUCKET: env.R2_BUCKET,
       R2_PUBLIC_DOMAIN: env.R2_PUBLIC_DOMAIN,
@@ -51,7 +88,6 @@ export default {
       return new Response(null, { headers });
     }
 
-    const url = new URL(request.url);
     const origin = request.headers.get('Origin');
 
     const getResponseHeaders = () => {
@@ -277,16 +313,7 @@ export default {
     }
 
     return new Response('Flyimg · 瞬传・瞬用', { status: 200 });
-  },
-
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(
-      cleanupExpiredFiles(env)
-        .then(count => console.log(`定时清理完成，删除了${count}张过期图片`))
-        .catch(err => console.error('定时清理失败:', err))
-    );
-  }
-};
+}
 
 function getFileExtension(mimeType) {
   return MIME_TO_EXT[mimeType] || mimeType.split('/')[1] || 'bin';

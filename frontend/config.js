@@ -1,4 +1,4 @@
-const API_BASE = 'WORKER_URL_PLACEHOLDER';
+const API_BASE = '';
 const DISPLAY_CONFIG = {
   expireHours: 12,
   maxFileSizeMB: 20,
