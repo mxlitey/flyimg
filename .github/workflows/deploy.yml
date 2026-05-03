@@ -221,7 +221,7 @@ jobs:
             echo "### Access URLs" >> $GITHUB_STEP_SUMMARY
             echo "- Frontend & API: \`${WORKER_URL}\`" >> $GITHUB_STEP_SUMMARY
             echo "- Image CDN: \`${R2_DOMAIN}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- Admin Panel: \`${WORKER_URL}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Admin Panel: \`${WORKER_URL}/admin\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
             echo "### Configuration" >> $GITHUB_STEP_SUMMARY

@@ -507,6 +507,19 @@ export default {
       return jsonResponse({ error: 'Not Found' }, 404, origin, CONFIG);
     }
     
+    if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
+      const indexRequest = new Request(new URL('/index.html', url.origin), request);
+      const response = await env.ASSETS.fetch(indexRequest);
+      
+      return new HTMLRewriter()
+        .on('head', {
+          element(element) {
+            element.append('<script>window.ADMIN_MODE=true;</script>', { html: true });
+          }
+        })
+        .transform(response);
+    }
+    
     const assetResponse = await env.ASSETS.fetch(request);
     
     if (assetResponse.status === 404 && !isStaticAsset(url.pathname)) {

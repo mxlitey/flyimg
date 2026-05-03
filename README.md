@@ -423,7 +423,7 @@ curl https://your-worker.workers.dev/stats
 
 ### 如何进入管理后台？
 
-点击前端页面"管理"按钮，输入 `CRON_SECRET`。也可通过 URL `?token=你的CRON_SECRET` 直接进入。
+访问 `https://你的域名/admin`，输入 `CRON_SECRET` 进行登录。
 
 ### 如何给 Worker 绑定自定义域名？
 

@@ -393,17 +393,13 @@
 
     function initRouter() {
       const path = window.location.pathname.substring(1);
-      const urlParams = new URLSearchParams(window.location.search);
-      const tokenParam = urlParams.get('token');
 
-      if (tokenParam) {
-        adminToken = tokenParam;
-        localStorage.setItem('adminToken', adminToken);
+      adminToken = localStorage.getItem('adminToken') || '';
+
+      if (window.ADMIN_MODE) {
         navigateTo('admin');
         return;
       }
-
-      adminToken = localStorage.getItem('adminToken') || '';
 
       if (path && path !== 'index.html' && !path.startsWith('api/') && !path.includes('.')) {
         currentUserTag = decodeURIComponent(path);
