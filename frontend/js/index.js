@@ -26,12 +26,6 @@ const App = {
       htmlLink: document.getElementById('html-link'),
       expireTime: document.getElementById('expire-time'),
       userTagInput: document.getElementById('user-tag-input'),
-      pageUpload: document.getElementById('page-upload'),
-      pageMyImages: document.getElementById('page-my-images'),
-      myTagDisplay: document.getElementById('my-tag-display'),
-      myImagesLoading: document.getElementById('my-images-loading'),
-      myImagesEmpty: document.getElementById('my-images-empty'),
-      myImagesGrid: document.getElementById('my-images-grid'),
       navMy: document.getElementById('nav-my')
     };
   },
@@ -73,55 +67,29 @@ const App = {
   },
 
   initRouter() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const userParam = urlParams.get('user');
-
-    if (userParam) {
-      this.currentUserTag = userParam;
-      this.elements.userTagInput.value = this.currentUserTag;
-      this.navigateTo('my-images');
-      return;
-    }
-
     const savedTag = localStorage.getItem('userTag');
     if (savedTag && savedTag !== 'default') {
       this.currentUserTag = savedTag;
       this.elements.userTagInput.value = savedTag;
+      this.elements.navMy.classList.remove('hidden');
     }
-
-    this.updateNavButtons();
   },
 
   navigateTo(page) {
-    this.elements.pageUpload.classList.add('hidden');
-    this.elements.pageMyImages.classList.add('hidden');
-
-    if (page === 'upload') {
-      this.resetUpload();
-      this.elements.pageUpload.classList.remove('hidden');
-    } else if (page === 'my-images') {
+    if (page === 'my-images') {
       const tag = this.elements.userTagInput.value.trim();
-      if (tag) {
-        this.currentUserTag = tag;
-        localStorage.setItem('userTag', tag);
-      }
-      if (!this.currentUserTag) {
+      if (!tag) {
         Toast.show('请先输入用户名');
         this.elements.userTagInput.focus();
-        this.elements.pageUpload.classList.remove('hidden');
         return;
       }
-      this.elements.pageMyImages.classList.remove('hidden');
-      this.elements.myTagDisplay.textContent = this.currentUserTag;
-      this.loadMyImages();
+      window.location.href = `/${encodeURIComponent(tag)}/`;
+      return;
     }
 
-    this.updateNavButtons();
-  },
-
-  updateNavButtons() {
-    if (this.currentUserTag) {
-      this.elements.navMy.classList.remove('hidden');
+    if (page === 'upload') {
+      window.location.href = '/';
+      return;
     }
   },
 
@@ -141,7 +109,7 @@ const App = {
     if (userTag !== 'default') {
       this.currentUserTag = userTag;
       localStorage.setItem('userTag', userTag);
-      this.updateNavButtons();
+      this.elements.navMy.classList.remove('hidden');
     }
 
     const xhr = new XMLHttpRequest();
@@ -204,70 +172,6 @@ const App = {
     xhr.timeout = 60000;
     xhr.open('POST', `${this.API_BASE}/upload`);
     xhr.send(formData);
-  },
-
-  async loadMyImages() {
-    const { myImagesLoading, myImagesEmpty, myImagesGrid } = this.elements;
-
-    myImagesLoading.classList.remove('hidden');
-    myImagesEmpty.classList.add('hidden');
-    myImagesGrid.innerHTML = '';
-
-    try {
-      const resp = await fetch(`${this.API_BASE}/my-images?user_tag=${encodeURIComponent(this.currentUserTag)}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-      const data = await resp.json();
-
-      myImagesLoading.classList.add('hidden');
-
-      if (!data.success) {
-        Toast.show(data.error || '加载失败');
-        return;
-      }
-
-      if (!data.images || data.images.length === 0) {
-        myImagesEmpty.classList.remove('hidden');
-        return;
-      }
-
-      data.images.forEach(img => {
-        myImagesGrid.appendChild(this.createImageCard(img));
-      });
-    } catch (error) {
-      console.error('加载文件列表失败:', error);
-      myImagesLoading.classList.add('hidden');
-      Toast.show('加载文件列表失败，请检查网络连接');
-    }
-  },
-
-  createImageCard(img) {
-    const card = document.createElement('div');
-    const isExpired = img.expired;
-    const safeUrl = Utils.escapeAttr(img.url || '');
-    const displayUrl = Utils.escapeHtml(img.url || '');
-
-    card.className = `${Theme.getCardClass()} rounded-xl overflow-hidden ${isExpired ? 'border-2 border-danger' : ''}`;
-    card.innerHTML = `
-      <div class="relative">
-        <img src="${displayUrl}" alt="图片" class="w-full h-40 object-cover ${isExpired ? 'opacity-50' : ''}" loading="lazy"
-             onerror="this.style.display='none'">
-        ${isExpired ? '<span class="absolute top-2 right-2 bg-danger text-white text-xs px-2 py-1 rounded">已过期</span>' : ''}
-      </div>
-      <div class="p-3">
-        <p class="text-xs text-gray-400 mb-1">${Utils.formatDate(img.created_at)}</p>
-        <p class="text-xs ${isExpired ? 'text-danger' : 'text-gray-500'}">${Utils.formatTimeLeft(img.expire_at)}</p>
-        <p class="text-xs text-gray-500 mt-1">${Utils.formatBytes(img.size)}</p>
-        <button class="mt-2 w-full bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors" data-url="${safeUrl}">
-          <i class="fa fa-copy mr-1"></i>复制链接
-        </button>
-      </div>
-    `;
-
-    const copyBtn = card.querySelector('button[data-url]');
-    copyBtn.addEventListener('click', () => Clipboard.copy(copyBtn.dataset.url));
-
-    return card;
   },
 
   resetUpload() {

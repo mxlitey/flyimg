@@ -45,6 +45,24 @@ function isStaticAsset(pathname) {
   return STATIC_EXTENSIONS.some(ext => pathname.toLowerCase().endsWith(ext));
 }
 
+function isValidUserTag(tag) {
+  if (!tag || tag.length > 32) return false;
+  return /^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$/.test(tag);
+}
+
+function isUserTagRoute(pathname) {
+  if (pathname === '/' || pathname === '') return false;
+  const segments = pathname.split('/').filter(s => s.length > 0);
+  if (segments.length !== 1) return false;
+  const tag = segments[0];
+  return isValidUserTag(tag);
+}
+
+function getUserTagFromPath(pathname) {
+  const segments = pathname.split('/').filter(s => s.length > 0);
+  return segments[0] || null;
+}
+
 async function timingSafeEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
   const encoder = new TextEncoder();
@@ -503,6 +521,13 @@ export default {
       }
       
       return jsonResponse({ error: 'Not Found' }, 404, origin, CONFIG);
+    }
+    
+    if (isUserTagRoute(url.pathname)) {
+      const userTag = getUserTagFromPath(url.pathname);
+      const assetUrl = new URL('/[usertag]/index.html', url.origin);
+      const assetRequest = new Request(assetUrl, request);
+      return env.ASSETS.fetch(assetRequest);
     }
     
     return env.ASSETS.fetch(request);
