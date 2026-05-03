@@ -1,6 +1,7 @@
 const UserPage = {
   API_BASE: '..',
   userTag: '',
+  images: [],
   renewConfig: { max_count: 3, durations: [60, 180, 360, 720] },
 
   init() {
@@ -44,10 +45,10 @@ const UserPage = {
         this.renewConfig = data.renew_config;
       }
 
-      const images = data.images || [];
-      document.getElementById('image-count').textContent = images.length;
+      this.images = data.images || [];
+      document.getElementById('image-count').textContent = this.images.length;
 
-      if (images.length === 0) {
+      if (this.images.length === 0) {
         empty.classList.remove('hidden');
         return;
       }
@@ -55,7 +56,7 @@ const UserPage = {
       grid.classList.remove('hidden');
       grid.innerHTML = '';
 
-      images.forEach(img => {
+      this.images.forEach(img => {
         grid.appendChild(this.createImageCard(img));
       });
     } catch {
@@ -65,6 +66,15 @@ const UserPage = {
     }
   },
 
+  renderImages() {
+    const grid = document.getElementById('images-grid');
+    if (!grid || grid.classList.contains('hidden')) return;
+    grid.innerHTML = '';
+    this.images.forEach(img => {
+      grid.appendChild(this.createImageCard(img));
+    });
+  },
+
   createImageCard(img) {
     const card = document.createElement('div');
     const safeUrl = Utils.escapeAttr(img.url || '');
@@ -72,9 +82,11 @@ const UserPage = {
     const safeFilename = Utils.escapeAttr(img.filename || '');
     const renewCount = img.renew_count || 0;
     const canRenew = renewCount < this.renewConfig.max_count;
+    const isDark = document.documentElement.classList.contains('dark');
+    const infoColor = isDark ? '#9ca3af' : '#6b7280';
 
     const renewBadge = renewCount > 0 
-      ? `<span class="text-xs text-gray-500 dark:text-gray-400">(已续${renewCount}次)</span>` 
+      ? `<span class="text-xs" style="color: ${infoColor}">(已续${renewCount}次)</span>` 
       : '';
 
     card.className = `${Theme.getCardClass()} rounded-xl overflow-hidden`;
@@ -83,9 +95,9 @@ const UserPage = {
         <img src="${displayUrl}" alt="资源" class="w-full h-40 object-cover" loading="lazy" onerror="this.style.display='none'">
       </div>
       <div class="p-3">
-        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">${Utils.formatDate(img.created_at)}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${Utils.formatBytes(img.size)}</p>
+        <p class="text-xs mb-1" style="color: ${infoColor}">${Utils.formatDate(img.created_at)}</p>
+        <p class="text-xs" style="color: ${infoColor}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
+        <p class="text-xs mt-1" style="color: ${infoColor}">${Utils.formatBytes(img.size)}</p>
         <div class="flex gap-2 mt-2">
           <button class="btn-copy flex-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors" data-url="${safeUrl}">
             <i class="fa fa-copy mr-1"></i>复制
@@ -207,4 +219,5 @@ const UserPage = {
 document.addEventListener('DOMContentLoaded', () => {
   Theme.init();
   UserPage.init();
+  Theme.onChange(() => UserPage.renderImages());
 });

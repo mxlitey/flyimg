@@ -520,4 +520,5 @@ function confirmAction(result) {
 document.addEventListener('DOMContentLoaded', () => {
   Theme.init();
   Admin.init();
+  Theme.onChange(() => Admin.renderImages());
 });

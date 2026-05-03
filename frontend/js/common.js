@@ -73,6 +73,7 @@ const Theme = {
   toggleBtn: null,
   moonIcon: null,
   lightIcon: null,
+  onChangeCallbacks: [],
 
   init() {
     this.toggleBtn = document.getElementById('theme-toggle');
@@ -84,6 +85,14 @@ const Theme = {
     if (this.toggleBtn) {
       this.toggleBtn.addEventListener('click', () => this.toggle());
     }
+  },
+
+  onChange(callback) {
+    this.onChangeCallbacks.push(callback);
+  },
+
+  triggerChange() {
+    this.onChangeCallbacks.forEach(cb => cb());
   },
 
   apply() {
@@ -124,6 +133,7 @@ const Theme = {
 
     this.updateIcon();
     this.applyThemeInputs();
+    this.triggerChange();
   },
 
   switchGlassClass(fromClass, toClass) {
