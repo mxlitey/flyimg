@@ -109,21 +109,21 @@
 
         <div class="space-y-4 text-left">
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">直链</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">直链</label>
             <div class="flex">
               <input type="text" id="direct-link" class="theme-input flex-grow px-4 py-3 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" readonly>
               <button onclick="copyLink('direct-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">Markdown</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Markdown</label>
             <div class="flex">
               <input type="text" id="markdown-link" class="theme-input flex-grow px-4 py-3 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" readonly>
               <button onclick="copyLink('markdown-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">HTML</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">HTML</label>
             <div class="flex">
               <input type="text" id="html-link" class="theme-input flex-grow px-4 py-3 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" readonly>
               <button onclick="copyLink('html-link')" class="bg-primary text-white px-6 py-3 rounded-r-lg hover:bg-primary/90 transition-colors font-medium">复制</button>
@@ -131,7 +131,7 @@
           </div>
         </div>
 
-        <button onclick="resetUpload()" class="mt-8 w-full bg-gray-700 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium">
+        <button onclick="resetUpload()" class="mt-8 w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-6 py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium">
           <i class="fa fa-upload mr-2"></i>继续上传
         </button>
       </div>
@@ -139,7 +139,7 @@
   </main>
 
   <footer class="glass py-6 mt-auto">
-    <div class="max-w-4xl mx-auto px-4 text-center text-gray-400">
+    <div class="max-w-4xl mx-auto px-4 text-center text-gray-600 dark:text-gray-400">
       <p>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
       <p>文件 <span id="footer-expire-hours">12</span> 小时后自动永久删除</p>
     </div>

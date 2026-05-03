@@ -120,7 +120,7 @@ const Admin = {
     const images = this.getFilteredImages();
 
     if (images.length === 0) {
-      grid.innerHTML = '<p class="text-center text-gray-400 py-8">暂无文件</p>';
+      grid.innerHTML = '<p class="text-center text-gray-600 dark:text-gray-400 py-8">暂无文件</p>';
       return;
     }
 
@@ -139,7 +139,7 @@ const Admin = {
     const isChecked = this.selectedFilenames.has(img.filename) ? 'checked' : '';
     const renewCount = img.renew_count || 0;
     const renewBadge = renewCount > 0 
-      ? `<span class="text-xs text-gray-500">(已续${renewCount}次)</span>` 
+      ? `<span class="text-xs text-gray-500 dark:text-gray-400">(已续${renewCount}次)</span>` 
       : '';
 
     row.className = `${Theme.getCardClass()} rounded-xl p-4 flex items-center space-x-4 ${isExpired ? 'border-l-4 border-danger' : 'border-l-4 border-success'}`;
@@ -148,8 +148,8 @@ const Admin = {
       <img src="${displayUrl}" alt="资源" class="w-16 h-16 object-cover rounded-lg ${isExpired ? 'opacity-50' : ''}" loading="lazy"
            onerror="this.style.display='none'">
       <div class="flex-grow min-w-0">
-        <p class="text-sm font-mono truncate text-gray-300">${displayFilename}</p>
-        <p class="text-xs text-gray-500">用户: ${safeUserTag} · ${Utils.formatBytes(img.size)} · ${Utils.formatDate(img.created_at)}</p>
+        <p class="text-sm font-mono truncate text-gray-800 dark:text-gray-300">${displayFilename}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">用户: ${safeUserTag} · ${Utils.formatBytes(img.size)} · ${Utils.formatDate(img.created_at)}</p>
         <p class="text-xs ${isExpired ? 'text-danger' : 'text-success'}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
       </div>
       <div class="flex gap-2 flex-shrink-0">
@@ -393,20 +393,20 @@ const Admin = {
       <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
           <h3 class="text-lg font-semibold mb-2">续期资源（管理员）</h3>
-          <p class="text-sm text-gray-300 mb-2">
-            文件: <span class="font-mono text-white">${Utils.escapeHtml(img.filename)}</span>
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
+            文件: <span class="font-mono text-gray-900 dark:text-white">${Utils.escapeHtml(img.filename)}</span>
           </p>
-          <p class="text-sm text-gray-300 mb-4">
-            已续期次数: <span class="font-medium text-white">${currentCount}</span>（管理员无限制）
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            已续期次数: <span class="font-medium text-gray-900 dark:text-white">${currentCount}</span>（管理员无限制）
           </p>
           <div class="mb-4">
-            <label class="block text-sm text-gray-200 mb-2 font-medium">选择续期时长</label>
+            <label class="block text-sm text-gray-700 dark:text-gray-200 mb-2 font-medium">选择续期时长</label>
             <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
               ${durationOptions}
             </select>
           </div>
           <div class="flex gap-3">
-            <button id="renew-cancel" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">取消</button>
+            <button id="renew-cancel" class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">取消</button>
             <button id="renew-confirm" class="flex-1 bg-success text-white px-4 py-2 rounded-lg hover:bg-success/90 transition-colors">确认续期</button>
           </div>
         </div>

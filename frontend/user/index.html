@@ -54,22 +54,22 @@
   <main class="flex-grow max-w-4xl mx-auto px-4 py-8 w-full">
     <div class="text-center mb-8">
       <h1 class="text-3xl font-bold mb-2"><span id="user-tag-display">用户</span> 的文件</h1>
-      <p class="text-gray-400">共 <span id="image-count">0</span> 个文件</p>
+      <p class="text-gray-600 dark:text-gray-400">共 <span id="image-count">0</span> 个文件</p>
     </div>
     <div id="images-loading" class="text-center py-12">
       <i class="fa fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-      <p class="text-gray-400">加载中...</p>
+      <p class="text-gray-600 dark:text-gray-400">加载中...</p>
     </div>
     <div id="images-empty" class="text-center py-12 hidden">
       <i class="fa fa-inbox text-6xl text-gray-600 mb-4"></i>
-      <p class="text-gray-400 text-lg">暂无文件</p>
+      <p class="text-gray-600 dark:text-gray-400 text-lg">暂无文件</p>
       <a href="../" class="mt-4 inline-block bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">去上传</a>
     </div>
     <div id="images-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
   </main>
 
   <footer class="glass py-6 mt-auto">
-    <div class="max-w-4xl mx-auto px-4 text-center text-gray-400">
+    <div class="max-w-4xl mx-auto px-4 text-center text-gray-600 dark:text-gray-400">
       <p>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
     </div>
   </footer>
@@ -77,6 +77,6 @@
   <div id="toast" class="fixed bottom-6 right-6 bg-dark-700 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50"></div>
 
   <script src="../js/common.js"></script>
-  <script src="../js/usertag.js"></script>
+  <script src="../js/user.js"></script>
 </body>
 </html>

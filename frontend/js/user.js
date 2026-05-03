@@ -74,7 +74,7 @@ const UserPage = {
     const canRenew = renewCount < this.renewConfig.max_count;
 
     const renewBadge = renewCount > 0 
-      ? `<span class="text-xs text-gray-500">(已续${renewCount}次)</span>` 
+      ? `<span class="text-xs text-gray-500 dark:text-gray-400">(已续${renewCount}次)</span>` 
       : '';
 
     card.className = `${Theme.getCardClass()} rounded-xl overflow-hidden`;
@@ -83,9 +83,9 @@ const UserPage = {
         <img src="${displayUrl}" alt="资源" class="w-full h-40 object-cover" loading="lazy" onerror="this.style.display='none'">
       </div>
       <div class="p-3">
-        <p class="text-xs text-gray-400 mb-1">${Utils.formatDate(img.created_at)}</p>
-        <p class="text-xs text-gray-500">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
-        <p class="text-xs text-gray-500 mt-1">${Utils.formatBytes(img.size)}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">${Utils.formatDate(img.created_at)}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${Utils.formatBytes(img.size)}</p>
         <div class="flex gap-2 mt-2">
           <button class="btn-copy flex-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded hover:bg-primary/30 transition-colors" data-url="${safeUrl}">
             <i class="fa fa-copy mr-1"></i>复制
@@ -129,17 +129,17 @@ const UserPage = {
       <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
           <h3 class="text-lg font-semibold mb-2">续期资源</h3>
-          <p class="text-sm text-gray-300 mb-4">
-            剩余续期次数：<span class="font-medium text-white">${maxCount - currentCount}</span> / ${maxCount}
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            剩余续期次数：<span class="font-medium text-gray-900 dark:text-white">${maxCount - currentCount}</span> / ${maxCount}
           </p>
           <div class="mb-4">
-            <label class="block text-sm text-gray-200 mb-2 font-medium">选择续期时长</label>
+            <label class="block text-sm text-gray-700 dark:text-gray-200 mb-2 font-medium">选择续期时长</label>
             <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
               ${durationOptions}
             </select>
           </div>
           <div class="flex gap-3">
-            <button id="renew-cancel" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">取消</button>
+            <button id="renew-cancel" class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">取消</button>
             <button id="renew-confirm" class="flex-1 bg-success text-white px-4 py-2 rounded-lg hover:bg-success/90 transition-colors">确认续期</button>
           </div>
         </div>

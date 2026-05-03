@@ -33,7 +33,7 @@
           <a href="../" class="flex items-center">
             <img src="../favicon.png" alt="Logo" class="w-10 h-10 mr-3">
             <span class="text-xl font-bold">Flyimg</span>
-            <span class="ml-2 text-sm text-gray-400">管理后台</span>
+            <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">管理后台</span>
           </a>
         </div>
         <div class="flex items-center space-x-2">
@@ -93,37 +93,37 @@
         <div class="flex justify-around text-center">
           <div>
             <p class="text-2xl font-bold text-primary" id="stat-total">0</p>
-            <p class="text-xs text-gray-400">总文件数</p>
+            <p class="text-xs text-gray-600 dark:text-gray-400">总文件数</p>
           </div>
           <div>
             <p class="text-2xl font-bold text-warning" id="stat-expired">0</p>
-            <p class="text-xs text-gray-400">已过期</p>
+            <p class="text-xs text-gray-600 dark:text-gray-400">已过期</p>
           </div>
           <div>
             <p class="text-2xl font-bold text-success" id="stat-active">0</p>
-            <p class="text-xs text-gray-400">有效文件</p>
+            <p class="text-xs text-gray-600 dark:text-gray-400">有效文件</p>
           </div>
           <div>
             <p class="text-2xl font-bold text-primary" id="stat-used-space">0 B</p>
-            <p class="text-xs text-gray-400">已用空间</p>
+            <p class="text-xs text-gray-600 dark:text-gray-400">已用空间</p>
           </div>
           <div>
-            <p class="text-2xl font-bold text-gray-400" id="stat-total-space">1000 MB</p>
-            <p class="text-xs text-gray-400">总空间</p>
+            <p class="text-2xl font-bold text-gray-600 dark:text-gray-400" id="stat-total-space">1000 MB</p>
+            <p class="text-xs text-gray-600 dark:text-gray-400">总空间</p>
           </div>
         </div>
       </div>
 
       <div id="admin-images-loading" class="text-center py-12 hidden">
         <i class="fa fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-        <p class="text-gray-400">加载中...</p>
+        <p class="text-gray-600 dark:text-gray-400">加载中...</p>
       </div>
       <div id="admin-images-grid" class="space-y-3"></div>
     </div>
   </main>
 
   <footer class="glass py-6 mt-auto">
-    <div class="max-w-4xl mx-auto px-4 text-center text-gray-400">
+    <div class="max-w-4xl mx-auto px-4 text-center text-gray-600 dark:text-gray-400">
       <p>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
     </div>
   </footer>
@@ -133,11 +133,11 @@
   <div id="confirm-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden">
     <div class="glass rounded-2xl p-8 max-w-sm mx-4">
       <h3 class="text-lg font-semibold mb-4" id="confirm-title">确认操作</h3>
-      <p class="text-gray-400 mb-6" id="confirm-message"></p>
+      <p class="text-gray-600 dark:text-gray-400 mb-6" id="confirm-message"></p>
       <div class="flex space-x-3">
-        <button onclick="confirmAction(false)" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">取消</button>
-        <button onclick="confirmAction(true)" class="flex-1 bg-danger text-white px-4 py-2 rounded-lg hover:bg-danger/90 transition-colors">确认</button>
-      </div>
+          <button onclick="confirmAction(false)" class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">取消</button>
+          <button onclick="confirmAction(true)" class="flex-1 bg-danger text-white px-4 py-2 rounded-lg hover:bg-danger/90 transition-colors">确认</button>
+        </div>
     </div>
   </div>
 
