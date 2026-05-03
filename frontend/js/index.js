@@ -68,7 +68,7 @@ const App = {
 
   initRouter() {
     const savedTag = localStorage.getItem('userTag');
-    if (savedTag && savedTag !== 'default') {
+    if (savedTag && savedTag !== 'default' && savedTag !== '[usertag]') {
       this.currentUserTag = savedTag;
       this.elements.userTagInput.value = savedTag;
       this.elements.navMy.classList.remove('hidden');
@@ -106,7 +106,7 @@ const App = {
     const userTag = this.elements.userTagInput.value.trim() || 'default';
     formData.append('user_tag', userTag);
 
-    if (userTag !== 'default') {
+    if (userTag !== 'default' && userTag !== '[usertag]') {
       this.currentUserTag = userTag;
       localStorage.setItem('userTag', userTag);
       this.elements.navMy.classList.remove('hidden');
