@@ -395,20 +395,16 @@
     });
 
     function initRouter() {
-      const path = window.location.pathname.substring(1);
-
       adminToken = localStorage.getItem('adminToken') || '';
 
-      if (window.ADMIN_MODE) {
+      if (window.PAGE_MODE === 'admin') {
         navigateTo('admin');
         return;
       }
 
-      if (path && path !== 'index.html' && path !== 'admin' && !path.startsWith('admin/') && !path.startsWith('api/') && !path.includes('.')) {
-        currentUserTag = decodeURIComponent(path);
-        if (currentUserTag !== 'default') {
-          document.getElementById('user-tag-input').value = currentUserTag;
-        }
+      if (window.PAGE_MODE === 'user' && window.USER_TAG) {
+        currentUserTag = decodeURIComponent(window.USER_TAG);
+        document.getElementById('user-tag-input').value = currentUserTag;
         navigateTo('my-images');
         return;
       }

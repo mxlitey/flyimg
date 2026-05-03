@@ -512,12 +512,28 @@ export default {
       const response = await env.ASSETS.fetch(indexRequest);
       
       return new HTMLRewriter()
-        .on('head', {
+        .on('body', {
           element(element) {
-            element.append('<script>window.ADMIN_MODE=true;</script>', { html: true });
+            element.before('<script>window.PAGE_MODE="admin";</script>', { html: true });
           }
         })
         .transform(response);
+    }
+    
+    if (url.pathname !== '/' && !url.pathname.startsWith('/api/') && !isStaticAsset(url.pathname)) {
+      const userTag = url.pathname.substring(1);
+      if (userTag && !userTag.includes('/')) {
+        const indexRequest = new Request(new URL('/index.html', url.origin), request);
+        const response = await env.ASSETS.fetch(indexRequest);
+        
+        return new HTMLRewriter()
+          .on('body', {
+            element(element) {
+              element.before(`<script>window.PAGE_MODE="user";window.USER_TAG="${userTag}";</script>`, { html: true });
+            }
+          })
+          .transform(response);
+      }
     }
     
     const assetResponse = await env.ASSETS.fetch(request);
