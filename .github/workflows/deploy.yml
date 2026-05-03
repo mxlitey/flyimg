@@ -19,48 +19,111 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
-      - name: 📥 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🔐 Validate Required Secrets
+      - name: Validate Required Secrets
         run: |
           echo "========================================="
-          echo "  Flyimg · 瞬传・瞬用 - Deployment Check"
+          echo "  Flyimg - Deployment Check"
           echo "========================================="
           echo ""
           MISSING=()
 
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then MISSING+=("CLOUDFLARE_API_TOKEN"); fi
           if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then MISSING+=("CLOUDFLARE_ACCOUNT_ID"); fi
-          if [ -z "${{ secrets.R2_PUBLIC_DOMAIN }}" ]; then MISSING+=("R2_PUBLIC_DOMAIN"); fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then MISSING+=("CRON_SECRET"); fi
+          if [ -z "${{ vars.R2_PUBLIC_DOMAIN }}" ]; then MISSING+=("R2_PUBLIC_DOMAIN (Variable)"); fi
 
           if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "❌ Missing required GitHub Secrets:"
+            echo "Missing required configuration:"
             echo ""
             for s in "${MISSING[@]}"; do
-              echo "  • $s"
+              echo "  - $s"
             done
             echo ""
-            echo "👉 Go to: Settings → Secrets and variables → Actions → New repository secret"
-            echo "📖 See README.md for detailed setup instructions."
+            echo "Go to: Settings -> Secrets and variables -> Actions"
             exit 1
           fi
 
-          echo "✅ All required secrets are configured"
+          echo "All required configuration is set"
           echo ""
 
-      - name: 🟢 Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: 📦 Install Wrangler
+      - name: Install Wrangler
         run: |
           npm install -g wrangler
-          echo "✅ Wrangler $(wrangler --version) installed"
+          echo "Wrangler $(wrangler --version) installed"
 
-      - name: 🗄️ Setup D1 Database
+      - name: Update wrangler.toml Variables
+        run: |
+          R2_DOMAIN="${{ vars.R2_PUBLIC_DOMAIN }}"
+          EXPIRE_HOURS="${{ vars.EXPIRE_HOURS || '12' }}"
+          MAX_FILE_SIZE="${{ vars.MAX_FILE_SIZE || '20' }}"
+          MAX_STORAGE_SIZE="${{ vars.MAX_STORAGE_SIZE || '1000' }}"
+          ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}"
+          
+          sed -i "s|R2_PUBLIC_DOMAIN = \"[^\"]*\"|R2_PUBLIC_DOMAIN = \"${R2_DOMAIN}\"|g" wrangler.toml
+          sed -i "s|EXPIRE_HOURS = \"[^\"]*\"|EXPIRE_HOURS = \"${EXPIRE_HOURS}\"|g" wrangler.toml
+          sed -i "s|MAX_FILE_SIZE = \"[^\"]*\"|MAX_FILE_SIZE = \"${MAX_FILE_SIZE}\"|g" wrangler.toml
+          sed -i "s|MAX_STORAGE_SIZE = \"[^\"]*\"|MAX_STORAGE_SIZE = \"${MAX_STORAGE_SIZE}\"|g" wrangler.toml
+          sed -i "s|ALLOWED_TYPES = \"[^\"]*\"|ALLOWED_TYPES = \"${ALLOWED_TYPES}\"|g" wrangler.toml
+          
+          echo "Updated wrangler.toml with variables"
+          echo ""
+          echo "Configuration:"
+          echo "  - R2_PUBLIC_DOMAIN: ${R2_DOMAIN}"
+          echo "  - EXPIRE_HOURS: ${EXPIRE_HOURS}"
+          echo "  - MAX_FILE_SIZE: ${MAX_FILE_SIZE}MB"
+          echo "  - MAX_STORAGE_SIZE: ${MAX_STORAGE_SIZE}MB"
+          echo "  - ALLOWED_TYPES: ${ALLOWED_TYPES}"
+
+      - name: Generate Frontend Config
+        run: |
+          EXPIRE_HOURS="${{ vars.EXPIRE_HOURS || '12' }}"
+          MAX_FILE_SIZE="${{ vars.MAX_FILE_SIZE || '20' }}"
+          MAX_STORAGE_SIZE="${{ vars.MAX_STORAGE_SIZE || '1000' }}"
+          ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}"
+          
+          TYPES_DISPLAY=$(echo "$ALLOWED_TYPES" | jq -R 'split(",") | map(
+            if . == "image/jpeg" then "JPG"
+            elif . == "image/png" then "PNG"
+            elif . == "image/gif" then "GIF"
+            elif . == "image/webp" then "WebP"
+            elif . == "image/svg+xml" then "SVG"
+            elif . == "image/bmp" then "BMP"
+            elif . == "image/x-icon" then "ICO"
+            elif . == "audio/mpeg" then "MP3"
+            elif . == "audio/wav" then "WAV"
+            elif . == "audio/ogg" then "OGG"
+            elif . == "audio/mp4" then "M4A"
+            elif . == "audio/aac" then "AAC"
+            elif . == "video/mp4" then "MP4"
+            elif . == "video/webm" then "WebM"
+            elif . == "video/quicktime" then "MOV"
+            elif . == "video/x-msvideo" then "AVI"
+            else ""
+            end
+          ) | map(select(length > 0)) | join("、")')
+          
+          cat > frontend/config.js << EOF
+          const API_BASE = '';
+          const DISPLAY_CONFIG = {
+            expireHours: ${EXPIRE_HOURS},
+            maxFileSizeMB: ${MAX_FILE_SIZE},
+            maxStorageSizeMB: ${MAX_STORAGE_SIZE},
+            allowedTypesDisplay: '${TYPES_DISPLAY}',
+          };
+          EOF
+          
+          echo "Generated frontend/config.js:"
+          cat frontend/config.js
+
+      - name: Setup D1 Database
         id: setup-d1
         run: |
           echo "Checking for existing D1 database 'flyimg-db'..."
@@ -70,7 +133,7 @@ jobs:
             jq -r '.result[] | select(.name=="flyimg-db") | .uuid' | head -1 || true)
 
           if [ -n "$D1_ID" ]; then
-            echo "✅ Found existing D1 database: $D1_ID"
+            echo "Found existing D1 database: $D1_ID"
           else
             echo "Creating new D1 database 'flyimg-db'..."
             CREATE_OUTPUT=$(wrangler d1 create flyimg-db 2>&1 || true)
@@ -82,26 +145,25 @@ jobs:
               echo ""
               echo "Please create it manually in Cloudflare Dashboard or run:"
               echo "  npx wrangler d1 create flyimg-db"
-              echo "Then add the database_id to wrangler.toml"
               exit 1
             fi
-            echo "✅ Created new D1 database: $D1_ID"
+            echo "Created new D1 database: $D1_ID"
           fi
 
           echo "database_id=$D1_ID" >> $GITHUB_OUTPUT
           sed -i "s/YOUR_D1_DATABASE_ID/$D1_ID/g" wrangler.toml
 
-      - name: 📊 Execute D1 Migration
+      - name: Execute D1 Migration
         run: |
           wrangler d1 execute flyimg-db --file=migrations/0001_init.sql --remote
-          echo "✅ D1 migration completed"
+          echo "D1 migration completed"
 
-      - name: 🪣 Ensure R2 Bucket
+      - name: Ensure R2 Bucket
         run: |
           wrangler r2 bucket create flyimg 2>/dev/null || true
-          echo "✅ R2 bucket ready"
+          echo "R2 bucket ready"
 
-      - name: 🚀 Deploy Worker with Assets
+      - name: Deploy Worker with Assets
         id: deploy-worker
         run: |
           DEPLOY_OUTPUT=$(wrangler deploy 2>&1)
@@ -109,77 +171,69 @@ jobs:
           
           WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[a-zA-Z0-9_-]+\.workers\.dev' | head -1 || true)
           echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
-          echo "✅ Worker with Assets deployed: $WORKER_URL"
+          echo "Worker with Assets deployed: $WORKER_URL"
 
-      - name: 🔑 Set Worker Secrets
+      - name: Set Worker Secrets
         run: |
           set_secret() {
             local name="$1"
             local value="$2"
             if [ -z "$value" ]; then
-              echo "  ⏭️ $name skipped (empty)"
+              echo "  Skipped $name (empty)"
               return
             fi
             BODY=$(jq -n --arg name "$name" --arg text "$value" '{name: $name, text: $text, type: "secret_text"}')
             curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/flyimg/secrets" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "$BODY" && echo "  ✅ $name set" || echo "  ⚠️ $name failed"
+              -d "$BODY" && echo "  Set $name" || echo "  Failed to set $name"
           }
 
-          set_secret "R2_PUBLIC_DOMAIN" "${{ secrets.R2_PUBLIC_DOMAIN }}"
           set_secret "CRON_SECRET" "${{ secrets.CRON_SECRET }}"
-          set_secret "EXPIRE_HOURS" "${EXPIRE_HOURS_VAL}"
-          set_secret "MAX_FILE_SIZE" "${MAX_FILE_SIZE_VAL}"
-          set_secret "MAX_STORAGE_SIZE" "${MAX_STORAGE_SIZE_VAL}"
-          set_secret "ALLOWED_TYPES" "${ALLOWED_TYPES_VAL}"
-          set_secret "CORS_ALLOWED_ORIGINS" "${CORS_ALLOWED_ORIGINS_VAL}"
+          
+          CORS_ORIGINS="${{ vars.CORS_ALLOWED_ORIGINS }}"
+          if [ -n "$CORS_ORIGINS" ]; then
+            set_secret "CORS_ALLOWED_ORIGINS" "$CORS_ORIGINS"
+          fi
 
-          echo "✅ Worker secrets configured"
-        env:
-          EXPIRE_HOURS_VAL: ${{ secrets.EXPIRE_HOURS || '12' }}
-          MAX_FILE_SIZE_VAL: ${{ secrets.MAX_FILE_SIZE || '20' }}
-          MAX_STORAGE_SIZE_VAL: ${{ secrets.MAX_STORAGE_SIZE || '1000' }}
-          ALLOWED_TYPES_VAL: ${{ secrets.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}
-          CORS_ALLOWED_ORIGINS_VAL: ${{ secrets.CORS_ALLOWED_ORIGINS }}
+          echo "Worker secrets configured"
 
-      - name: 📋 Deployment Summary
+      - name: Deployment Summary
         if: always()
         run: |
-          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ **All components deployed successfully!**" >> $GITHUB_STEP_SUMMARY
+            echo "All components deployed successfully!" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
             echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-            echo "| D1 Database (flyimg-db) | ✅ Ready |" >> $GITHUB_STEP_SUMMARY
-            echo "| R2 Bucket (flyimg) | ✅ Ready |" >> $GITHUB_STEP_SUMMARY
-            echo "| Worker + Assets | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
-            echo "| Worker Secrets | ✅ Configured |" >> $GITHUB_STEP_SUMMARY
+            echo "| D1 Database (flyimg-db) | Ready |" >> $GITHUB_STEP_SUMMARY
+            echo "| R2 Bucket (flyimg) | Ready |" >> $GITHUB_STEP_SUMMARY
+            echo "| Worker + Assets | Deployed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Worker Secrets | Configured |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
             WORKER_URL="${{ steps.deploy-worker.outputs.worker_url }}"
-            R2_DOMAIN="${{ secrets.R2_PUBLIC_DOMAIN }}"
+            R2_DOMAIN="${{ vars.R2_PUBLIC_DOMAIN }}"
 
-            echo "### 🔗 Access URLs" >> $GITHUB_STEP_SUMMARY
-            echo "- **Frontend & API**: \`${WORKER_URL}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Image CDN**: \`${R2_DOMAIN}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Admin Panel**: \`${WORKER_URL}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
+            echo "### Access URLs" >> $GITHUB_STEP_SUMMARY
+            echo "- Frontend & API: \`${WORKER_URL}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Image CDN: \`${R2_DOMAIN}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Admin Panel: \`${WORKER_URL}/?token=YOUR_CRON_SECRET\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            echo "### 📌 Architecture" >> $GITHUB_STEP_SUMMARY
-            echo "Workers + Assets + D1 + R2 - 统一域名部署" >> $GITHUB_STEP_SUMMARY
-            echo "- 静态资源：免费无限制" >> $GITHUB_STEP_SUMMARY
-            echo "- API 请求：正常计费" >> $GITHUB_STEP_SUMMARY
-            echo "- 图片直链：R2 公网访问" >> $GITHUB_STEP_SUMMARY
+            echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+            echo "- EXPIRE_HOURS: ${{ vars.EXPIRE_HOURS || '12' }}" >> $GITHUB_STEP_SUMMARY
+            echo "- MAX_FILE_SIZE: ${{ vars.MAX_FILE_SIZE || '20' }}MB" >> $GITHUB_STEP_SUMMARY
+            echo "- MAX_STORAGE_SIZE: ${{ vars.MAX_STORAGE_SIZE || '1000' }}MB" >> $GITHUB_STEP_SUMMARY
+            echo "- ALLOWED_TYPES: \`${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Deployment failed.** Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+            echo "Deployment failed. Check the logs above for details." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 🔧 Troubleshooting" >> $GITHUB_STEP_SUMMARY
-            echo "1. Verify all 4 GitHub Secrets are correctly set" >> $GITHUB_STEP_SUMMARY
+            echo "### Troubleshooting" >> $GITHUB_STEP_SUMMARY
+            echo "1. Verify all required secrets are correctly set" >> $GITHUB_STEP_SUMMARY
             echo "2. Check Cloudflare API token has correct permissions (Workers, D1, R2)" >> $GITHUB_STEP_SUMMARY
             echo "3. Ensure R2 bucket 'flyimg' has public access enabled" >> $GITHUB_STEP_SUMMARY
-            echo "4. Re-run the workflow after fixing issues" >> $GITHUB_STEP_SUMMARY
           fi

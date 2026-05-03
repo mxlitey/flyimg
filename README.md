@@ -77,27 +77,41 @@
 - 或任意密码生成器生成 32 位以上随机字符串
 - 或随便打一串，如 `my-s3cr3t-k3y-2024-flyimg`
 
-### 第三步：配置 GitHub Secrets
+### 第三步：配置 GitHub Secrets 和 Variables
 
 1. 进入你 Fork 的仓库 → **Settings** → **Secrets and variables** → **Actions**
-2. 点击 **New repository secret**，添加以下 **4 个必填**密钥：
+
+#### 必填 Secrets（敏感信息）
+
+点击 **Secrets** 标签页，添加以下 **2 个必填**密钥：
 
 | Secret 名称 | 填什么 | 从哪来 |
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN` | API Token | 第 2.4 步 |
 | `CLOUDFLARE_ACCOUNT_ID` | Account ID | 第 2.3 步 |
-| `R2_PUBLIC_DOMAIN` | R2 公网地址 | 第 2.2 步 |
 | `CRON_SECRET` | 管理密钥 | 第 2.5 步 |
 
-**可选配置**（不设置则使用默认值）：
+#### 必填 Variables（非敏感配置）
 
-| Secret 名称 | 默认值 | 说明 |
+点击 **Variables** 标签页，添加以下 **1 个必填**变量：
+
+| Variable 名称 | 填什么 | 从哪来 |
+|---|---|---|
+| `R2_PUBLIC_DOMAIN` | R2 公网地址 | 第 2.2 步 |
+
+#### 可选 Variables（非敏感配置）
+
+点击 **Variables** 标签页，添加以下可选变量（不设置则使用默认值）：
+
+| Variable 名称 | 默认值 | 说明 |
 |---|---|---|
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时） |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
 | `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
+
+> **区别**：Variables 可以在部署日志中显示，适合非敏感配置；Secrets 会被加密隐藏，适合密钥等敏感信息。
 
 <details>
 <summary>📋 ALLOWED_TYPES 常用 MIME 类型参考</summary>

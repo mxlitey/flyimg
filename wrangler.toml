@@ -17,3 +17,10 @@ database_id = "YOUR_D1_DATABASE_ID"
 
 [triggers]
 crons = ["0 */1 * * *"]
+
+[vars]
+EXPIRE_HOURS = "12"
+MAX_FILE_SIZE = "20"
+MAX_STORAGE_SIZE = "1000"
+ALLOWED_TYPES = "image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+R2_PUBLIC_DOMAIN = "YOUR_R2_PUBLIC_DOMAIN"
