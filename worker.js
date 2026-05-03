@@ -354,6 +354,9 @@ async function handleAllImages(request, env, CONFIG) {
       'SELECT filename, size, user_tag, renew_count, expire_at, created_at FROM images ORDER BY created_at DESC'
     ).all();
 
+    const storageInfo = await getStorageInfo(env.DB, now);
+    const maxStorageFormatted = formatBytes(CONFIG.MAX_STORAGE_SIZE);
+
     return jsonResponse({
       success: true,
       images: results.map(img => ({
@@ -364,6 +367,10 @@ async function handleAllImages(request, env, CONFIG) {
       renew_config: {
         max_count: CONFIG.MAX_RENEW_COUNT,
         durations: CONFIG.RENEW_DURATIONS
+      },
+      storage_info: {
+        maxStorageFormatted,
+        maxStorageSize: CONFIG.MAX_STORAGE_SIZE
       }
     }, 200, origin, CONFIG);
 

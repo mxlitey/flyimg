@@ -75,6 +75,10 @@ const Admin = {
         this.renewConfig = data.renew_config;
       }
 
+      if (data.storage_info) {
+        document.getElementById('stat-total-space').textContent = data.storage_info.maxStorageFormatted;
+      }
+
       this.updateUserFilter();
       this.renderImages();
       this.updateStats();
@@ -376,6 +380,7 @@ const Admin = {
     const durations = this.renewConfig.durations;
     const maxCount = this.renewConfig.max_count;
     const currentCount = img.renew_count || 0;
+    const isDark = document.documentElement.classList.contains('dark');
 
     const durationOptions = durations.map(d => {
       if (d === 0) {
@@ -389,24 +394,30 @@ const Admin = {
       return `<option value="${d}">${label}</option>`;
     }).join('');
 
+    const titleColor = isDark ? '#ffffff' : '#000000';
+    const textColor = isDark ? '#d1d5db' : '#374151';
+    const highlightColor = isDark ? '#ffffff' : '#000000';
+    const cancelBg = isDark ? '#374155' : '#e5e7eb';
+    const cancelText = isDark ? '#ffffff' : '#1f2937';
+
     const modalHtml = `
       <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
-          <h3 class="text-lg font-semibold mb-2 text-black dark:text-white">续期资源（管理员）</h3>
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">
-            文件: <span class="font-mono text-black dark:text-white">${Utils.escapeHtml(img.filename)}</span>
+          <h3 class="text-lg font-semibold mb-2" style="color: ${titleColor}">续期资源（管理员）</h3>
+          <p class="text-sm mb-2" style="color: ${textColor}">
+            文件: <span class="font-mono" style="color: ${highlightColor}">${Utils.escapeHtml(img.filename)}</span>
           </p>
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-4">
-            已续期次数: <span class="font-medium text-black dark:text-white">${currentCount}</span>（管理员无限制）
+          <p class="text-sm mb-4" style="color: ${textColor}">
+            已续期次数: <span class="font-medium" style="color: ${highlightColor}">${currentCount}</span>（管理员无限制）
           </p>
           <div class="mb-4">
-            <label class="block text-sm text-gray-700 dark:text-gray-200 mb-2 font-medium">选择续期时长</label>
+            <label class="block text-sm mb-2 font-medium" style="color: ${textColor}">选择续期时长</label>
             <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
               ${durationOptions}
             </select>
           </div>
           <div class="flex gap-3">
-            <button id="renew-cancel" class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">取消</button>
+            <button id="renew-cancel" class="flex-1 px-4 py-2 rounded-lg transition-colors" style="background-color: ${cancelBg}; color: ${cancelText}">取消</button>
             <button id="renew-confirm" class="flex-1 bg-success text-white px-4 py-2 rounded-lg hover:bg-success/90 transition-colors">确认续期</button>
           </div>
         </div>
