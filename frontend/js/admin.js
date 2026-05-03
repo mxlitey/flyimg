@@ -136,14 +136,17 @@ const Admin = {
   createImageRow(img) {
     const row = document.createElement('div');
     const isExpired = img.expired;
+    const isDark = document.documentElement.classList.contains('dark');
     const safeFilename = Utils.escapeAttr(img.filename || '');
     const displayFilename = Utils.escapeHtml(img.filename || '');
     const safeUserTag = Utils.escapeHtml(img.user_tag || '');
     const displayUrl = Utils.escapeHtml(img.url || '');
     const isChecked = this.selectedFilenames.has(img.filename) ? 'checked' : '';
     const renewCount = img.renew_count || 0;
+    const filenameColor = isDark ? '#d1d5db' : '#1f2937';
+    const infoColor = isDark ? '#9ca3af' : '#6b7280';
     const renewBadge = renewCount > 0 
-      ? `<span class="text-xs text-gray-500 dark:text-gray-400">(已续${renewCount}次)</span>` 
+      ? `<span class="text-xs" style="color: ${infoColor}">(已续${renewCount}次)</span>` 
       : '';
 
     row.className = `${Theme.getCardClass()} rounded-xl p-4 flex items-center space-x-4 ${isExpired ? 'border-l-4 border-danger' : 'border-l-4 border-success'}`;
@@ -152,8 +155,8 @@ const Admin = {
       <img src="${displayUrl}" alt="资源" class="w-16 h-16 object-cover rounded-lg ${isExpired ? 'opacity-50' : ''}" loading="lazy"
            onerror="this.style.display='none'">
       <div class="flex-grow min-w-0">
-        <p class="text-sm font-mono truncate text-gray-800 dark:text-gray-300">${displayFilename}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400">用户: ${safeUserTag} · ${Utils.formatBytes(img.size)} · ${Utils.formatDate(img.created_at)}</p>
+        <p class="text-sm font-mono truncate" style="color: ${filenameColor}">${displayFilename}</p>
+        <p class="text-xs" style="color: ${infoColor}">用户: ${safeUserTag} · ${Utils.formatBytes(img.size)} · ${Utils.formatDate(img.created_at)}</p>
         <p class="text-xs ${isExpired ? 'text-danger' : 'text-success'}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
       </div>
       <div class="flex gap-2 flex-shrink-0">
