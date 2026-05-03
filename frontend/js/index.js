@@ -157,36 +157,51 @@ const App = {
       this.elements.progressBar.style.width = '100%';
 
       if (xhr.status === 200) {
-        const result = JSON.parse(xhr.responseText);
+        try {
+          const result = JSON.parse(xhr.responseText);
 
-        this.elements.uploadProgress.classList.add('hidden');
-        this.elements.uploadResult.classList.remove('hidden');
+          this.elements.uploadProgress.classList.add('hidden');
+          this.elements.uploadResult.classList.remove('hidden');
 
-        this.elements.previewImage.src = result.url;
-        this.elements.directLink.value = result.url;
-        this.elements.markdownLink.value = result.markdown;
-        this.elements.htmlLink.value = result.html;
+          this.elements.previewImage.src = result.url;
+          this.elements.directLink.value = result.url;
+          this.elements.markdownLink.value = result.markdown;
+          this.elements.htmlLink.value = result.html;
 
-        const hoursLeft = Math.round((new Date(result.expireAt) - Date.now()) / (1000 * 60 * 60));
-        this.elements.expireTime.textContent = `${hoursLeft}小时后过期`;
+          const hoursLeft = Math.round((new Date(result.expireAt) - Date.now()) / (1000 * 60 * 60));
+          this.elements.expireTime.textContent = `${hoursLeft}小时后过期`;
 
-        Toast.show('上传成功！');
+          Toast.show('上传成功！');
+        } catch (e) {
+          console.error('Parse response failed:', e, xhr.responseText);
+          Toast.show('解析响应失败');
+          this.resetUpload();
+        }
       } else {
         try {
           const error = JSON.parse(xhr.responseText);
           Toast.show(error.error || '上传失败');
         } catch {
-          Toast.show('上传失败');
+          console.error('Upload failed:', xhr.status, xhr.responseText);
+          Toast.show(`上传失败 (${xhr.status})`);
         }
         this.resetUpload();
       }
     });
 
     xhr.addEventListener('error', () => {
+      console.error('Network error');
       Toast.show('上传失败，请检查网络连接');
       this.resetUpload();
     });
 
+    xhr.addEventListener('timeout', () => {
+      console.error('Request timeout');
+      Toast.show('上传超时，请重试');
+      this.resetUpload();
+    });
+
+    xhr.timeout = 60000;
     xhr.open('POST', `${this.API_BASE}/upload`);
     xhr.send(formData);
   },
