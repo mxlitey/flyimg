@@ -13,7 +13,8 @@
 - 📦 **统一架构**：Workers + Assets 单一部署，前后端同域
 - 📤 **直连上传**：前端直连 Worker API，架构简洁、延迟低
 - 👤 **用户标识**：通过用户名区分，支持查看个人上传的文件
-- 🛡️ **管理后台**：CRON_SECRET 鉴权，查看/删除/批量操作/按用户筛选
+- 🔄 **图片续期**：支持为图片续期延长过期时间，可配置续期次数和时长
+- 🛡️ **管理后台**：CRON_SECRET 鉴权，查看/删除/续期/批量操作/按用户筛选
 - 🕒 **自动清理**：Cron 定时删除过期文件，支持自定义过期时间
 - 🎨 **明暗主题**：自动适配系统主题，支持手动切换
 - 📱 **全响应式**：拖拽 / Ctrl+V 粘贴 / 点击上传
@@ -110,6 +111,7 @@
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
 | `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
+| `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置，格式：`次数;分钟1;分钟2;...`，0表示永不过期 |
 
 > **区别**：Variables 可以在部署日志中显示，适合非敏感配置；Secrets 会被加密隐藏，适合密钥等敏感信息。
 
@@ -263,9 +265,39 @@ curl https://your-worker.workers.dev/my-images?user_tag=myname
       "size": 1048576,
       "expire_at": "2025-01-02T00:00:00.000Z",
       "created_at": "2025-01-01T12:00:00.000Z",
-      "expired": false
+      "expired": false,
+      "renew_count": 0
     }
-  ]
+  ],
+  "renew_config": {
+    "max_count": 3,
+    "durations": [60, 180, 360, 720]
+  }
+}
+```
+
+### 续期图片
+
+```bash
+curl -X POST https://your-worker.workers.dev/renew \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "1234567890-abc.jpg", "duration": 60, "user_tag": "myname"}'
+```
+
+**参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `filename` | String | ✅ | 文件名 |
+| `duration` | Number | ✅ | 续期时长（分钟），0 表示永不过期 |
+| `user_tag` | String | ✅ | 用户标识（需与上传时一致） |
+
+**响应**：
+
+```json
+{
+  "success": true,
+  "message": "续期成功，新过期时间：2025-01-03T00:00:00.000Z"
 }
 ```
 
@@ -330,6 +362,7 @@ curl https://your-worker.workers.dev/stats
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
 | `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔 |
 | `CORS_ALLOWED_ORIGINS` | `*` | 允许的跨域来源，逗号分隔 |
+| `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置：`次数;分钟1;分钟2;...`，0 表示永不过期 |
 
 ### R2 缓存联动
 
@@ -485,11 +518,13 @@ flyimg/
 |------|------|------|
 | `id` | INTEGER | 主键，自增 ID |
 | `filename` | TEXT | 文件名（唯一标识） |
-| `url` | TEXT | 图片完整访问 URL |
 | `size` | INTEGER | 文件大小（字节） |
 | `user_tag` | TEXT | 用户名标签，用于区分不同用户 |
+| `renew_count` | INTEGER | 已续期次数 |
 | `expire_at` | TEXT | 过期时间（ISO 8601 格式） |
 | `created_at` | TEXT | 创建时间（ISO 8601 格式） |
+
+> **注意**：图片 URL 通过 `R2_PUBLIC_DOMAIN` + `filename` 动态生成，不再存储在数据库中。
 
 ### 索引
 

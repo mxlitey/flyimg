@@ -31,7 +31,7 @@ const FILE_SIGNATURES = {
   'video/quicktime': [[0x00, 0x00, 0x00], [0x66, 0x74, 0x79, 0x70]],
 };
 
-const API_ROUTES = ['/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images'];
+const API_ROUTES = ['/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images', '/renew'];
 
 const STATIC_EXTENSIONS = ['.html', '.css', '.js', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot'];
 
@@ -106,6 +106,11 @@ function getConfig(env) {
   
   const expireHours = parseInt(env.EXPIRE_HOURS || '12', 10);
   
+  const renewOptionsRaw = env.RENEW_OPTIONS || '3;60;180;360;720';
+  const renewParts = renewOptionsRaw.split(';').map(s => parseInt(s.trim(), 10));
+  const maxRenewCount = renewParts[0] || 3;
+  const renewDurations = renewParts.slice(1).filter(n => !isNaN(n) && n >= 0);
+  
   cachedConfig = {
     R2_BUCKET: env.R2_BUCKET,
     R2_PUBLIC_DOMAIN: sanitizeR2Domain(env.R2_PUBLIC_DOMAIN),
@@ -115,7 +120,9 @@ function getConfig(env) {
     ALLOWED_TYPES: (env.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml').split(',').map(t => t.trim()),
     CRON_SECRET: env.CRON_SECRET || '',
     CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',').map(t => t.trim()) : null,
-    CACHE_MAX_AGE: expireHours * 3600
+    CACHE_MAX_AGE: expireHours * 3600,
+    MAX_RENEW_COUNT: maxRenewCount,
+    RENEW_DURATIONS: renewDurations
   };
   
   return cachedConfig;
@@ -312,7 +319,7 @@ async function handleMyImages(request, env, CONFIG) {
 
     const now = new Date().toISOString();
     const { results } = await env.DB.prepare(
-      'SELECT filename, size, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC'
+      'SELECT filename, size, renew_count, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC'
     ).bind(userTag, now).all();
 
     return jsonResponse({
@@ -321,7 +328,11 @@ async function handleMyImages(request, env, CONFIG) {
         ...img,
         url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
         expired: false
-      }))
+      })),
+      renew_config: {
+        max_count: CONFIG.MAX_RENEW_COUNT,
+        durations: CONFIG.RENEW_DURATIONS
+      }
     }, 200, origin, CONFIG);
 
   } catch (error) {
@@ -340,7 +351,7 @@ async function handleAllImages(request, env, CONFIG) {
   try {
     const now = new Date().toISOString();
     const { results } = await env.DB.prepare(
-      'SELECT filename, size, user_tag, expire_at, created_at FROM images ORDER BY created_at DESC'
+      'SELECT filename, size, user_tag, renew_count, expire_at, created_at FROM images ORDER BY created_at DESC'
     ).all();
 
     return jsonResponse({
@@ -349,7 +360,11 @@ async function handleAllImages(request, env, CONFIG) {
         ...img,
         url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
         expired: img.expire_at < now
-      }))
+      })),
+      renew_config: {
+        max_count: CONFIG.MAX_RENEW_COUNT,
+        durations: CONFIG.RENEW_DURATIONS
+      }
     }, 200, origin, CONFIG);
 
   } catch (error) {
@@ -446,6 +461,85 @@ async function handleStats(request, env, CONFIG) {
   }
 }
 
+async function handleRenew(request, env, CONFIG) {
+  const origin = request.headers.get('Origin');
+  const isAdmin = await verifyAdmin(request, CONFIG);
+  
+  try {
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: '无效的请求体' }, 400, origin, CONFIG);
+    }
+    
+    const { filename, duration, user_tag } = body;
+    
+    if (!filename) {
+      return jsonResponse({ error: '缺少filename参数' }, 400, origin, CONFIG);
+    }
+    
+    if (!/^[a-zA-Z0-9_\-.]+$/.test(filename)) {
+      return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
+    }
+    
+    if (duration === undefined || duration === null) {
+      return jsonResponse({ error: '缺少duration参数' }, 400, origin, CONFIG);
+    }
+    
+    const durationMinutes = parseInt(duration, 10);
+    if (isNaN(durationMinutes) || durationMinutes < 0) {
+      return jsonResponse({ error: '无效的续期时长' }, 400, origin, CONFIG);
+    }
+    
+    if (!CONFIG.RENEW_DURATIONS.includes(durationMinutes)) {
+      return jsonResponse({ error: '不支持的续期时长' }, 400, origin, CONFIG);
+    }
+    
+    const image = await env.DB.prepare(
+      'SELECT filename, user_tag, renew_count FROM images WHERE filename = ?'
+    ).bind(filename).first();
+    
+    if (!image) {
+      return jsonResponse({ error: '文件不存在' }, 404, origin, CONFIG);
+    }
+    
+    if (!isAdmin) {
+      const userTag = sanitizeUserTag(user_tag);
+      if (userTag !== image.user_tag) {
+        return jsonResponse({ error: '无权限续期此文件' }, 403, origin, CONFIG);
+      }
+    }
+    
+    if (image.renew_count >= CONFIG.MAX_RENEW_COUNT) {
+      return jsonResponse({ error: `续期次数已达上限（${CONFIG.MAX_RENEW_COUNT}次）` }, 400, origin, CONFIG);
+    }
+    
+    let newExpireAt;
+    if (durationMinutes === 0) {
+      newExpireAt = new Date('2099-12-31T23:59:59Z').toISOString();
+    } else {
+      newExpireAt = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
+    }
+    
+    await env.DB.prepare(
+      'UPDATE images SET expire_at = ?, renew_count = renew_count + 1 WHERE filename = ?'
+    ).bind(newExpireAt, filename).run();
+    
+    return jsonResponse({
+      success: true,
+      message: durationMinutes === 0 ? '已设为永不过期' : `续期成功，新过期时间：${newExpireAt}`,
+      expire_at: newExpireAt,
+      renew_count: image.renew_count + 1,
+      max_renew_count: CONFIG.MAX_RENEW_COUNT
+    }, 200, origin, CONFIG);
+    
+  } catch (error) {
+    console.error('Renew failed:', error);
+    return jsonResponse({ error: '续期失败，请稍后重试' }, 500, origin, CONFIG);
+  }
+}
+
 async function cleanupExpiredFiles(env) {
   const now = new Date().toISOString();
 
@@ -518,6 +612,10 @@ export default {
       
       if (url.pathname === '/stats' && request.method === 'GET') {
         return handleStats(request, env, CONFIG);
+      }
+      
+      if (url.pathname === '/renew' && request.method === 'POST') {
+        return handleRenew(request, env, CONFIG);
       }
       
       return jsonResponse({ error: 'Not Found' }, 404, origin, CONFIG);

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS images (
   filename TEXT NOT NULL,
   size INTEGER NOT NULL,
   user_tag TEXT NOT NULL DEFAULT 'default',
+  renew_count INTEGER DEFAULT 0,
   expire_at TEXT NOT NULL,
   created_at TEXT NOT NULL
 );

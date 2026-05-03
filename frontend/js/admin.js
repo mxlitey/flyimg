@@ -4,6 +4,7 @@ const Admin = {
   allImages: [],
   selectedFilenames: new Set(),
   confirmCallback: null,
+  renewConfig: { max_count: 3, durations: [60, 180, 360, 720] },
 
   init() {
     this.adminToken = localStorage.getItem('adminToken') || '';
@@ -70,6 +71,10 @@ const Admin = {
 
       this.allImages = data.images || [];
 
+      if (data.renew_config) {
+        this.renewConfig = data.renew_config;
+      }
+
       this.updateUserFilter();
       this.renderImages();
       this.updateStats();
@@ -132,6 +137,11 @@ const Admin = {
     const safeUserTag = Utils.escapeHtml(img.user_tag || '');
     const displayUrl = Utils.escapeHtml(img.url || '');
     const isChecked = this.selectedFilenames.has(img.filename) ? 'checked' : '';
+    const renewCount = img.renew_count || 0;
+    const canRenew = renewCount < this.renewConfig.max_count;
+    const renewBadge = renewCount > 0 
+      ? `<span class="text-xs text-gray-500">(已续${renewCount}次)</span>` 
+      : '';
 
     row.className = `${Theme.getCardClass()} rounded-xl p-4 flex items-center space-x-4 ${isExpired ? 'border-l-4 border-danger' : 'border-l-4 border-success'}`;
     row.innerHTML = `
@@ -141,11 +151,16 @@ const Admin = {
       <div class="flex-grow min-w-0">
         <p class="text-sm font-mono truncate text-gray-300">${displayFilename}</p>
         <p class="text-xs text-gray-500">用户: ${safeUserTag} · ${Utils.formatBytes(img.size)} · ${Utils.formatDate(img.created_at)}</p>
-        <p class="text-xs ${isExpired ? 'text-danger' : 'text-success'}">${Utils.formatExpireTime(img.expire_at)}</p>
+        <p class="text-xs ${isExpired ? 'text-danger' : 'text-success'}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
       </div>
-      <button class="btn-delete bg-danger/20 text-danger px-3 py-2 rounded-lg hover:bg-danger/30 transition-colors text-sm flex-shrink-0" data-filename="${safeFilename}">
-        <i class="fa fa-trash"></i>
-      </button>
+      <div class="flex gap-2 flex-shrink-0">
+        ${canRenew ? `<button class="btn-renew bg-success/20 text-success px-3 py-2 rounded-lg hover:bg-success/30 transition-colors text-sm" data-filename="${safeFilename}">
+          <i class="fa fa-clock-o"></i>
+        </button>` : ''}
+        <button class="btn-delete bg-danger/20 text-danger px-3 py-2 rounded-lg hover:bg-danger/30 transition-colors text-sm" data-filename="${safeFilename}">
+          <i class="fa fa-trash"></i>
+        </button>
+      </div>
     `;
 
     const checkbox = row.querySelector('.admin-file-checkbox');
@@ -153,6 +168,11 @@ const Admin = {
 
     const deleteBtn = row.querySelector('.btn-delete');
     deleteBtn.addEventListener('click', () => this.deleteFile(deleteBtn.dataset.filename));
+
+    const renewBtn = row.querySelector('.btn-renew');
+    if (renewBtn) {
+      renewBtn.addEventListener('click', () => this.showRenewModal(img));
+    }
 
     return row;
   },
@@ -351,6 +371,100 @@ const Admin = {
       this.confirmCallback(result);
       this.confirmCallback = null;
     }
+  },
+
+  showRenewModal(img) {
+    const durations = this.renewConfig.durations;
+    const maxCount = this.renewConfig.max_count;
+    const currentCount = img.renew_count || 0;
+
+    const durationOptions = durations.map(d => {
+      if (d === 0) {
+        return `<option value="0">永不过期</option>`;
+      }
+      const hours = Math.floor(d / 60);
+      const mins = d % 60;
+      const label = hours > 0 
+        ? (mins > 0 ? `${hours}小时${mins}分` : `${hours}小时`)
+        : `${mins}分钟`;
+      return `<option value="${d}">${label}</option>`;
+    }).join('');
+
+    const modalHtml = `
+      <div id="renew-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div class="${Theme.getCardClass()} rounded-2xl p-6 max-w-sm mx-4 w-full">
+          <h3 class="text-lg font-semibold mb-2">续期图片</h3>
+          <p class="text-sm text-gray-400 mb-2">
+            文件: ${Utils.escapeHtml(img.filename)}
+          </p>
+          <p class="text-sm text-gray-400 mb-4">
+            剩余续期次数: ${maxCount - currentCount} / ${maxCount}
+          </p>
+          <div class="mb-4">
+            <label class="block text-sm text-gray-300 mb-2">选择续期时长</label>
+            <select id="renew-duration" class="theme-input w-full px-3 py-2 border rounded-lg text-sm">
+              ${durationOptions}
+            </select>
+          </div>
+          <div class="flex gap-3">
+            <button id="renew-cancel" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">取消</button>
+            <button id="renew-confirm" class="flex-1 bg-success text-white px-4 py-2 rounded-lg hover:bg-success/90 transition-colors">确认续期</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    Theme.applyThemeInputs();
+
+    const modal = document.getElementById('renew-modal');
+    const cancelBtn = document.getElementById('renew-cancel');
+    const confirmBtn = document.getElementById('renew-confirm');
+    const durationSelect = document.getElementById('renew-duration');
+
+    const closeModal = () => modal.remove();
+
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    confirmBtn.addEventListener('click', async () => {
+      const duration = parseInt(durationSelect.value, 10);
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '处理中...';
+
+      try {
+        const resp = await fetch(`${this.API_BASE}/renew`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Cron-Secret': this.adminToken
+          },
+          body: JSON.stringify({
+            filename: img.filename,
+            duration: duration,
+            user_tag: img.user_tag
+          })
+        });
+
+        const data = await resp.json();
+
+        if (data.success) {
+          Toast.show(data.message);
+          closeModal();
+          this.loadImages();
+        } else {
+          Toast.show(data.error || '续期失败');
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = '确认续期';
+        }
+      } catch {
+        Toast.show('续期失败');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '确认续期';
+      }
+    });
   }
 };
 

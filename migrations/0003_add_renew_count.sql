@@ -1,0 +1,1 @@
+ALTER TABLE images ADD COLUMN renew_count INTEGER DEFAULT 0;

@@ -39,12 +39,16 @@ const Utils = {
 
   formatExpireTime(expireAt) {
     const expireDate = new Date(expireAt);
-    if (expireDate <= Date.now()) return '已过期';
-    const month = String(expireDate.getMonth() + 1).padStart(2, '0');
-    const day = String(expireDate.getDate()).padStart(2, '0');
-    const hours = String(expireDate.getHours()).padStart(2, '0');
-    const minutes = String(expireDate.getMinutes()).padStart(2, '0');
-    return `${month}-${day} ${hours}:${minutes} 过期`;
+    const now = Date.now();
+    if (expireDate <= now) return '已过期';
+    
+    const diff = expireDate - now;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours >= 24) return '>1天';
+    if (hours > 0) return `${hours}小时${minutes}分后过期`;
+    return `${minutes}分钟后过期`;
   }
 };
 
