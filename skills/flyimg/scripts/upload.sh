@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Flyimg 上传脚本：生成随机 user_tag，上传文件，输出 JSON 结果
 # 用法: bash upload.sh "<文件绝对路径>"
+# 多文件归档：通过 FLYIMG_USER_TAG 环境变量传入已有 user_tag 可复用，
+#             使一次提问中的多个文件归到同一个管理链接下。
+#             未传则自动生成新的 user_tag。
 
 set -euo pipefail
 
@@ -34,11 +37,16 @@ if [ -z "$WORKER_URL" ]; then
   exit 2
 fi
 
-# --- 生成随机 user_tag（时间戳 + 随机串，作为简单加密标识）---
+# --- 生成或复用 user_tag（时间戳 + 随机串，作为简单加密标识）---
 # 格式: oc_<10位时间戳>_<8位随机>
-TIMESTAMP=$(date +%s)
-RANDOM_STR=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
-USER_TAG="oc_${TIMESTAMP}_${RANDOM_STR}"
+# 若调用方通过 FLYIMG_USER_TAG 传入（多文件归档场景），则复用；否则生成新的
+if [ -n "${FLYIMG_USER_TAG:-}" ]; then
+  USER_TAG="$FLYIMG_USER_TAG"
+else
+  TIMESTAMP=$(date +%s)
+  RANDOM_STR=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
+  USER_TAG="oc_${TIMESTAMP}_${RANDOM_STR}"
+fi
 
 # --- 执行上传 ---
 UPLOAD_URL="${WORKER_URL}/upload"
