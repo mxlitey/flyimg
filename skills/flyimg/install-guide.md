@@ -1,10 +1,14 @@
 # Flyimg Upload Skill 安装指南（AgentSkills 规范）
 
-> **本文档供 AI Agent 读取。** 用户把本文档的链接发给 Agent 后，Agent 应按本文档指令从**主备双源**下载 Skill 文件并完成安装，**不要本地创建文件内容**。
->
-> 本文档本身也有两个获取入口：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md`（主源）与 `https://img.lii.qzz.io/install-guide.md`（备源，国内友好）。
+> **本文档供 AI Agent 读取。** 用户把本文档的链接发给 Agent 后，Agent 应按本文档指令从 GitHub 下载 Skill 文件并完成安装，**不要本地创建文件内容**。
 >
 > 本指南采用**识别当前工具 + 全局安装**模式：只安装到**当前正在运行本安装流程的 Agent 工具**的全局 skill 目录，不安装到其他工具。
+>
+> **文档访问镜像（国内用户）**：本文档的 GitHub 链接在国内可能无法访问，可改用 Gitee 镜像获取：
+> - GitHub：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md`
+> - Gitee：`https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg/install-guide.md`
+>
+> **下载源策略**：本文档中所有从远程下载 Skill 文件的步骤均采用「**先 GitHub，失败回退 Gitee**」策略——先尝试 GitHub 源，连接失败或下载出错时自动改用 Gitee 镜像，确保国内/国外环境都能完成安装。
 
 ---
 
@@ -35,7 +39,7 @@
 
 ## 三、前置条件
 
-1. **已部署 Flyimg 服务**：用户需有自己的 Flyimg Worker 实例，部署后会得到一个地址，形如 `https://flyimg.xxx.workers.dev` 或自定义域名 `https://img.example.com`。若用户尚未部署，告知其需先部署 Flyimg（基于 https://github.com/mxlitey/flyimg 仓库）。
+1. **已部署 Flyimg 服务**：用户需有自己的 Flyimg Worker 实例，部署后会得到一个地址，形如 `https://flyimg.xxx.workers.dev` 或自定义域名 `https://img.example.com`。若用户尚未部署，告知其需先部署 Flyimg（基于 https://github.com/mxlitey/flyimg 仓库，国内可访问 Gitee 镜像 https://gitee.com/litey/flyimg）。
 
 2. **运行环境**：
    - bash（Linux/macOS 自带；Windows 需 WSL 或 Git Bash）
@@ -104,13 +108,9 @@ fi
 - 不要询问用户"你用的是哪个工具"——Agent 自己就能判断
 - 只装到**当前工具**的全局目录，**不要**装到其他工具目录
 
-### 步骤 2：下载 Skill 文件到当前工具的全局目录（主备双源，自动降级）
+### 步骤 2：从远程下载 Skill 文件到当前工具的全局目录（先 GitHub，失败回退 Gitee）
 
-由于 GitHub raw 链接在国内可能无法访问，本步骤采用**主备双源**下载：
-- **主源**：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg`（GitHub raw）
-- **备源**：`https://img.lii.qzz.io/skills/flyimg`（由 Flyimg Worker 域名托管，国内友好）
-
-每个文件先尝试主源，失败则自动切换到备源。
+> **下载源策略**：国内访问 GitHub raw 可能超时，本步骤先尝试 GitHub，失败后自动回退到 Gitee 镜像，确保国内外环境都能装上。
 
 ```bash
 # 使用步骤 1 确定的 INSTALL_ROOT
@@ -120,40 +120,39 @@ fi
 # 创建目录
 mkdir -p "$INSTALL_ROOT/scripts"
 
-# 下载源（主备双源，自动降级）
-PRIMARY_BASE="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg"
-FALLBACK_BASE="https://img.lii.qzz.io/skills/flyimg"
+# 远程源：GitHub 主源 + Gitee 镜像（GitHub 不可访问时回退）
+GITHUB_URL="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg"
+GITEE_URL="https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg"
 
-# 单文件下载函数：先主源，失败则备源
+# 下载单个文件的函数：先 GitHub，失败回退 Gitee
+# 用法：download_file <相对路径> <输出路径>
 download_file() {
-  local rel="$1"    # 相对路径，如 SKILL.md / scripts/setup.sh
-  local dest="$2"   # 本地目标路径
+  local rel_path="$1"
+  local out_path="$2"
 
-  if curl -fsSL --max-time 15 "${PRIMARY_BASE}/${rel}" -o "$dest" 2>/dev/null; then
-    echo "  ✓ ${rel} (主源)"
+  # 先尝试 GitHub（10 秒连接超时，避免长时间挂起）
+  if curl -fsSL --connect-timeout 10 "$GITHUB_URL/$rel_path" -o "$out_path" 2>/dev/null; then
+    echo "✓ 从 GitHub 下载 $rel_path"
     return 0
   fi
-  echo "  ⚠ 主源失败，切换备用源: ${FALLBACK_BASE}/${rel}" >&2
-  if curl -fsSL --max-time 15 "${FALLBACK_BASE}/${rel}" -o "$dest" 2>/dev/null; then
-    echo "  ✓ ${rel} (备源)"
+
+  # GitHub 失败，回退 Gitee 镜像
+  echo "… GitHub 不可达，回退到 Gitee 镜像下载 $rel_path"
+  if curl -fsSL --connect-timeout 10 "$GITEE_URL/$rel_path" -o "$out_path" 2>/dev/null; then
+    echo "✓ 从 Gitee 镜像下载 $rel_path"
     return 0
   fi
-  echo "✗ 下载失败（主备源均不可用）: ${rel}" >&2
+
+  echo "✗ 下载 $rel_path 失败（GitHub 与 Gitee 均不可用）" >&2
   return 1
 }
 
 # 下载 SKILL.md
-if ! download_file "SKILL.md" "$INSTALL_ROOT/SKILL.md"; then
-  exit 1
-fi
+download_file "SKILL.md" "$INSTALL_ROOT/SKILL.md" || exit 1
 
 # 下载脚本
-if ! download_file "scripts/setup.sh" "$INSTALL_ROOT/scripts/setup.sh"; then
-  exit 1
-fi
-if ! download_file "scripts/upload.sh" "$INSTALL_ROOT/scripts/upload.sh"; then
-  exit 1
-fi
+download_file "scripts/setup.sh" "$INSTALL_ROOT/scripts/setup.sh" || exit 1
+download_file "scripts/upload.sh" "$INSTALL_ROOT/scripts/upload.sh" || exit 1
 
 # 设置脚本可执行权限
 chmod +x "$INSTALL_ROOT/scripts/setup.sh" "$INSTALL_ROOT/scripts/upload.sh"
@@ -166,7 +165,7 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 **验证要点**：
 - 目录下有 3 个文件（`SKILL.md`、`scripts/setup.sh`、`scripts/upload.sh`）
 - 两个脚本有可执行权限（`-rwx` 开头）
-- 若某个文件主备源均下载失败（函数返回非 0），停止安装并告知用户：可能是网络问题或两处源地址均变更
+- 若任一 `curl` 失败（非 0 退出，即 GitHub 与 Gitee 都失败），停止安装并告知用户：可能是网络问题或仓库地址变更
 
 ### 步骤 3：告知用户重启 Agent 工具
 
@@ -222,7 +221,7 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| `curl` 下载失败（主备源均失败） | 网络问题或两处源地址变更 | 检查网络；确认 GitHub 仓库 `mxlitey/flyimg` 与 `img.lii.qzz.io` 均可访问；可手动指定单一源重试 |
+| `curl` 下载失败 | 网络问题或仓库地址变更（GitHub 与 Gitee 均不可达） | 检查网络；确认仓库 `mxlitey/flyimg`（GitHub）或 `litey/flyimg`（Gitee）仍可访问 |
 | `Config not found` | 未配置 Worker 地址 | 运行 `setup.sh` 配置 |
 | HTTP 400 `不支持的文件类型` | 文件扩展名不在 `ALLOWED_TYPES` | 修改 Flyimg 部署的 `ALLOWED_TYPES` |
 | HTTP 400 `文件大小超过限制` | 文件超过 `MAX_FILE_SIZE` | 调大 `MAX_FILE_SIZE` 或压缩文件 |
@@ -246,14 +245,15 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 
 ---
 
-## 十、源仓库与下载源
+## 十、源仓库（GitHub 主源 + Gitee 镜像）
 
-- **源仓库**：https://github.com/mxlitey/flyimg
-- **Skill 目录**：`skills/flyimg/`
-- **分支**：`main`
+| 源 | 仓库地址 | raw 文件基础路径 |
+|---|---|---|
+| **GitHub（主源）** | https://github.com/mxlitey/flyimg | `https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg` |
+| **Gitee（国内镜像）** | https://gitee.com/litey/flyimg | `https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg` |
 
-下载源（主备双源）：
-- **主源**（GitHub raw）：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg`
-- **备源**（国内友好，由 Flyimg Worker 域名托管）：`https://img.lii.qzz.io/skills/flyimg`
+- Skill 目录：`skills/flyimg/`
+- 分支：`main`
+- **优先使用 GitHub 源**；国内访问 GitHub 失败时使用 Gitee 镜像（本指南所有下载步骤已内置该回退逻辑）。
 
-> 备源内容由部署流程自动从源仓库同步，保持与主源一致。如需获取最新版本或查看源码，访问上述 GitHub 仓库。
+如需获取最新版本或查看源码，访问上述任一仓库。
