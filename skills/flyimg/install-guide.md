@@ -162,19 +162,26 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 1. Agent 检查 `scripts/config.json` 是否存在
 2. **不存在 → 询问用户**："请提供你部署的 Flyimg Worker 地址"
 3. 用户回答后，Agent 自动调用 `setup.sh` 写入配置
-4. 之后每次上传会自动生成随机 user_tag 并上传，返回下载链接 + user_tag + 过期时间
+4. 之后每次上传会自动生成随机 user_tag 并上传，返回下载链接 + 文件管理链接 + 过期时间
 
 用户无需手动配置，Agent 会引导完成。
 
 ---
 
-## 六、user_tag 的作用
+## 六、文件管理链接
 
-每次上传生成形如 `oc_<时间戳>_<随机串>` 的 user_tag，例如 `oc_1719000000_a1b2c3d4`：
+每次上传会生成形如 `oc_<时间戳>_<随机串>` 的 user_tag（例如 `oc_1719000000_a1b2c3d4`），并由脚本拼接出**文件管理链接**：
 
-- **简单加密**：不同上传使用不同标识，避免被批量遍历
-- **查询凭据**：可在 Flyimg 前端用此 user_tag 查询本次上传的文件列表
-- **请妥善保管**：相当于该次上传的查询密钥
+```
+manage_url = <Flyimg Worker 地址> + "/" + user_tag
+例如：https://worker.example.com/oc_1719000000_a1b2c3d4
+```
+
+- **文件管理**：在浏览器打开 `manage_url` 即可查看/管理本次上传的文件（查看列表、续期等）
+- **简单加密**：不同上传使用不同 user_tag，避免被批量遍历
+- **妥善保管**：`manage_url`（含 user_tag）相当于该次上传的管理入口，请勿随意泄露
+
+> Agent 应直接使用脚本输出的 `manage_url`，无需自行拼接。
 
 ---
 

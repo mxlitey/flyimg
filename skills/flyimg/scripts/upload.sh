@@ -115,9 +115,11 @@ fi
 # 输出 JSON 结果到 stdout
 # remainingHours: 剩余小时数（基于 epoch 计算，向上取整），Agent 直接使用，禁止自行换算
 # now / expireAt: 均为北京时间，仅供展示
+# manage_url: 文件管理链接（worker_url + "/" + user_tag），浏览器打开可查看/管理本次上传的文件
+MANAGE_URL="${WORKER_URL}/${USER_TAG}"
 if [ -n "$EXPIRE_AT" ]; then
-  printf '{"success": true, "url": "%s", "user_tag": "%s", "now": "%s", "expireAt": "%s", "remainingHours": %s}\n' \
-    "$URL" "$USER_TAG" "$NOW_BEIJING" "$EXPIRE_BEIJING" "${REMAINING_HOURS:-0}"
+  printf '{"success": true, "url": "%s", "manage_url": "%s", "user_tag": "%s", "now": "%s", "expireAt": "%s", "remainingHours": %s}\n' \
+    "$URL" "$MANAGE_URL" "$USER_TAG" "$NOW_BEIJING" "$EXPIRE_BEIJING" "${REMAINING_HOURS:-0}"
 else
-  printf '{"success": true, "url": "%s", "user_tag": "%s"}\n' "$URL" "$USER_TAG"
+  printf '{"success": true, "url": "%s", "manage_url": "%s", "user_tag": "%s"}\n' "$URL" "$MANAGE_URL" "$USER_TAG"
 fi
