@@ -144,11 +144,15 @@ function getFileExtension(mimeType) {
   return sub || 'bin';
 }
 
-function generateFileName(mimeType) {
+function generateFileName(mimeType, originalExt) {
   const timestamp = Date.now();
   const random1 = Math.random().toString(36).substring(2, 10);
   const random2 = crypto.randomUUID().split('-')[0];
-  const ext = getFileExtension(mimeType);
+  let ext = MIME_TO_EXT[mimeType];
+  if (!ext) {
+    const cleaned = originalExt ? originalExt.toLowerCase().replace(/^[.]+/, '') : '';
+    ext = cleaned || getFileExtension(mimeType);
+  }
   return `${timestamp}-${random1}-${random2}.${ext}`;
 }
 
@@ -275,7 +279,7 @@ function getConfig(env) {
     EXPIRE_HOURS: expireHours,
     MAX_FILE_SIZE: parseInt(env.MAX_FILE_SIZE || '20', 10) * 1024 * 1024,
     MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000', 10) * 1024 * 1024,
-    ALLOWED_TYPES: unlimitedTypes ? [] : allowedTypesRaw.split(',').map(t => t.trim()),
+    ALLOWED_TYPES: unlimitedTypes ? [] : allowedTypesRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
     UNLIMITED_TYPES: unlimitedTypes,
     CRON_SECRET: env.CRON_SECRET || '',
     CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',').map(t => t.trim()) : null,
@@ -354,12 +358,22 @@ async function handleUpload(request, env, CONFIG) {
       return jsonResponse({ error: '未上传文件' }, 400, origin, CONFIG);
     }
 
-    if (!CONFIG.UNLIMITED_TYPES && !CONFIG.ALLOWED_TYPES.includes(file.type)) {
-      const allowedDisplay = CONFIG.ALLOWED_TYPES.map(t => getFileExtension(t).toUpperCase()).join('、');
+    const originalName = file.name || '';
+    const originalExt = originalName.includes('.')
+      ? originalName.slice(originalName.lastIndexOf('.') + 1).toLowerCase()
+      : '';
+    const mimeType = file.type || 'application/octet-stream';
+    const mimeExt = getFileExtension(mimeType);
+
+    if (!CONFIG.UNLIMITED_TYPES
+        && !CONFIG.ALLOWED_TYPES.includes(mimeType.toLowerCase())
+        && !CONFIG.ALLOWED_TYPES.includes(mimeExt)
+        && !CONFIG.ALLOWED_TYPES.includes(originalExt)) {
+      const allowedDisplay = CONFIG.ALLOWED_TYPES
+        .map(t => t.includes('/') ? t : t.toUpperCase())
+        .join('、');
       return jsonResponse({ error: `不支持的文件类型，仅支持：${allowedDisplay}` }, 400, origin, CONFIG);
     }
-
-    const mimeType = file.type || 'application/octet-stream';
 
     if (file.size > CONFIG.MAX_FILE_SIZE) {
       const maxMB = CONFIG.MAX_FILE_SIZE / (1024 * 1024);
@@ -383,7 +397,7 @@ async function handleUpload(request, env, CONFIG) {
         return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
       }
 
-      const fileName = generateFileName(mimeType);
+      const fileName = generateFileName(mimeType, originalExt);
       const timestamp = Date.now();
       const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 
@@ -423,7 +437,7 @@ async function handleUpload(request, env, CONFIG) {
       return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
     }
 
-    const fileName = generateFileName(mimeType);
+    const fileName = generateFileName(mimeType, originalExt);
     const timestamp = Date.now();
     const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 
