@@ -74,21 +74,50 @@ if [ -z "$URL" ]; then
   exit 5
 fi
 
-# 将 UTC 时间（ISO 8601，如 2025-06-30T12:00:00.000Z）转换为北京时间（UTC+8）
-# 输出格式: 2025-06-30 20:00:00
+# 计算剩余时长 + 北京时间展示
+# 关键：remainingHours 用 UTC epoch 秒相减，与时区无关，绝对正确
+#       避免 Agent 自行用 expireAt 减 now（会因时区不一致产生 8 小时误差）
 if [ -n "$EXPIRE_AT" ]; then
-  # 尝试 GNU date（Linux 常见）: date -d "<UTC> +8 hours" +"%Y-%m-%d %H:%M:%S"
-  BEIJING_EXPIRE=$(date -d "$EXPIRE_AT +8 hours" +"%Y-%m-%d %H:%M:%S" 2>/dev/null) || \
-  # 降级 BSD date（macOS 默认）: date -j -f "%Y-%m-%dT%H:%M:%S" "<去掉毫秒Z>" "+%Y-%m-%d %H:%M:%S" 后再加 8 小时
-  BEIJING_EXPIRE=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${EXPIRE_AT%%.*}" +"%Y-%m-%d %H:%M:%S" 2>/dev/null | \
-    awk -v t=8 '{split($2,a,":"); m=a[1]*60+a[2]+t*60; h=int(m/60)%24; m=m%60; printf "%s %02d:%02d:%s\n",$1,h,m,a[3]}') || \
-  # 全部失败则保留原始 UTC 值并标注
-  BEIJING_EXPIRE="${EXPIRE_AT} (UTC)"
+  # 当前 UTC epoch 秒（date -u +%s 在 GNU/BSD 均可用）
+  NOW_EPOCH=$(date -u +%s)
+  # expireAt 的 epoch 秒：GNU date 直接解析 ISO；BSD date 用 -j -u -f
+  EXPIRE_EPOCH=$(date -d "$EXPIRE_AT" +%s 2>/dev/null) || \
+  EXPIRE_EPOCH=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${EXPIRE_AT%%.*}" +%s 2>/dev/null) || \
+  EXPIRE_EPOCH=""
+
+  if [ -n "$EXPIRE_EPOCH" ]; then
+    # 剩余秒数 → 小时（向上取整，至少 0）
+    REMAINING_SEC=$((EXPIRE_EPOCH - NOW_EPOCH))
+    if [ "$REMAINING_SEC" -le 0 ]; then
+      REMAINING_HOURS=0
+    else
+      REMAINING_HOURS=$(( (REMAINING_SEC + 3599) / 3600 ))
+    fi
+    # now / expireAt 均转为北京时间（UTC+8）展示，方法：TZ 环境变量优先，+8 hours 兜底
+    to_beijing() {
+      local epoch="$1"
+      TZ=Asia/Shanghai date -d "@$epoch" +"%Y-%m-%d %H:%M:%S" 2>/dev/null || \
+      TZ=Asia/Shanghai date -j -f "%s" "$epoch" +"%Y-%m-%d %H:%M:%S" 2>/dev/null || \
+      date -d "@$epoch UTC +8 hours" +"%Y-%m-%d %H:%M:%S" 2>/dev/null || \
+      date -u -d "@$epoch" +"%Y-%m-%d %H:%M:%S (UTC, 转换失败)" 2>/dev/null || \
+      echo "$epoch (epoch)"
+    }
+    NOW_BEIJING=$(to_beijing "$NOW_EPOCH")
+    EXPIRE_BEIJING=$(to_beijing "$EXPIRE_EPOCH")
+  else
+    # epoch 解析失败，降级
+    REMAINING_HOURS=0
+    NOW_BEIJING=""
+    EXPIRE_BEIJING="${EXPIRE_AT} (UTC)"
+  fi
 fi
 
-# 输出 JSON 结果到 stdout（expireAt 为北京时间）
+# 输出 JSON 结果到 stdout
+# remainingHours: 剩余小时数（基于 epoch 计算，向上取整），Agent 直接使用，禁止自行换算
+# now / expireAt: 均为北京时间，仅供展示
 if [ -n "$EXPIRE_AT" ]; then
-  printf '{"success": true, "url": "%s", "user_tag": "%s", "expireAt": "%s"}\n' "$URL" "$USER_TAG" "$BEIJING_EXPIRE"
+  printf '{"success": true, "url": "%s", "user_tag": "%s", "now": "%s", "expireAt": "%s", "remainingHours": %s}\n' \
+    "$URL" "$USER_TAG" "$NOW_BEIJING" "$EXPIRE_BEIJING" "${REMAINING_HOURS:-0}"
 else
   printf '{"success": true, "url": "%s", "user_tag": "%s"}\n' "$URL" "$USER_TAG"
 fi
