@@ -575,16 +575,17 @@ manage_url = <Flyimg Worker 地址> + "/" + user_tag
 
 ### 多文件归档
 
-一次提问上传多个文件时，可复用同一 `user_tag` 将它们归到同一文件管理链接下：
+一次提问上传多个文件时，脚本会自动将它们归到同一 `user_tag` 下，共享同一个文件管理链接。调用方式：把所有文件路径作为参数一次性传给脚本。
 
-1. 第一个文件正常上传，从输出 JSON 取出 `user_tag`
-2. 后续文件通过 `FLYIMG_USER_TAG` 环境变量复用同一 `user_tag`：
-   ```bash
-   FLYIMG_USER_TAG="<已有 user_tag>" bash scripts/upload.sh "<文件路径>"
-   ```
-3. 最终回复中列出每个文件的下载链接，但只展示一个文件管理链接
+```bash
+bash scripts/upload.sh "<文件1>" "<文件2>" "<文件3>"
+```
 
-> 单文件上传无需此流程。详见 [SKILL.md](skills/flyimg/SKILL.md)「多文件归档」章节。
+脚本输出聚合 JSON，含 `files` 数组（每个文件的下载链接）和一个共用的 `manage_url`。
+
+> ⚠️ 不要对每个文件分别调用 `upload.sh`，否则会生成多个 `user_tag`、得到多个管理链接，无法归档。
+>
+> 单文件直接调用 `bash scripts/upload.sh "<文件>"` 即可，兼容。详见 [SKILL.md](skills/flyimg/SKILL.md)「上传流程」。
 
 ### 文件位置
 
