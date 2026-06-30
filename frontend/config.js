@@ -3,5 +3,5 @@ const DISPLAY_CONFIG = {
   expireHours: 12,
   maxFileSizeMB: 20,
   maxStorageSizeMB: 1000,
-  allowedTypesDisplay: 'JPG、PNG、GIF、WebP、SVG',
+  allowedTypesDisplay: 'JPG、PNG、GIF、WEBP、SVG',
 };

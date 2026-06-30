@@ -22,6 +22,6 @@ crons = ["0 */1 * * *"]
 EXPIRE_HOURS = "12"
 MAX_FILE_SIZE = "20"
 MAX_STORAGE_SIZE = "1000"
-ALLOWED_TYPES = "image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+ALLOWED_TYPES = "jpg,png,gif,webp,svg"
 R2_PUBLIC_DOMAIN = "YOUR_R2_PUBLIC_DOMAIN"
 RENEW_OPTIONS = "3;60;180;360;720"

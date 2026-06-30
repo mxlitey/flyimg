@@ -64,7 +64,7 @@ jobs:
           EXPIRE_HOURS="${{ vars.EXPIRE_HOURS || '12' }}"
           MAX_FILE_SIZE="${{ vars.MAX_FILE_SIZE || '20' }}"
           MAX_STORAGE_SIZE="${{ vars.MAX_STORAGE_SIZE || '1000' }}"
-          ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}"
+          ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'jpg,png,gif,webp,svg' }}"
           RENEW_OPTIONS="${{ vars.RENEW_OPTIONS || '3;60;180;360;720' }}"
 
           sed -i "s|R2_PUBLIC_DOMAIN = \"[^\"]*\"|R2_PUBLIC_DOMAIN = \"${R2_DOMAIN}\"|g" wrangler.toml
@@ -81,29 +81,15 @@ jobs:
           EXPIRE_HOURS="${{ vars.EXPIRE_HOURS || '12' }}"
           MAX_FILE_SIZE="${{ vars.MAX_FILE_SIZE || '20' }}"
           MAX_STORAGE_SIZE="${{ vars.MAX_STORAGE_SIZE || '1000' }}"
-          ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml' }}"
+          ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'jpg,png,gif,webp,svg' }}"
           RENEW_OPTIONS="${{ vars.RENEW_OPTIONS || '3;60;180;360;720' }}"
 
-          TYPES_DISPLAY=$(echo "$ALLOWED_TYPES" | jq -R 'split(",") | map(
-            if . == "image/jpeg" then "JPG"
-            elif . == "image/png" then "PNG"
-            elif . == "image/gif" then "GIF"
-            elif . == "image/webp" then "WebP"
-            elif . == "image/svg+xml" then "SVG"
-            elif . == "image/bmp" then "BMP"
-            elif . == "image/x-icon" then "ICO"
-            elif . == "audio/mpeg" then "MP3"
-            elif . == "audio/wav" then "WAV"
-            elif . == "audio/ogg" then "OGG"
-            elif . == "audio/mp4" then "M4A"
-            elif . == "audio/aac" then "AAC"
-            elif . == "video/mp4" then "MP4"
-            elif . == "video/webm" then "WebM"
-            elif . == "video/quicktime" then "MOV"
-            elif . == "video/x-msvideo" then "AVI"
-            else ""
-            end
-          ) | map(select(length > 0)) | join("、")')
+          # * 表示不限制；否则按扩展名（大写）拼接显示
+          if [ "$ALLOWED_TYPES" = "*" ]; then
+            TYPES_DISPLAY="所有"
+          else
+            TYPES_DISPLAY=$(echo "$ALLOWED_TYPES" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(ascii_upcase) | join("、")')
+          fi
 
           RENEW_PARTS=(${RENEW_OPTIONS//;/ })
           RENEW_MAX_COUNT=${RENEW_PARTS[0]}
