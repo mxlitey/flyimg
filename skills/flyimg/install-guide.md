@@ -95,20 +95,27 @@ mkdir -p "$INSTALL_ROOT/scripts"
 GITHUB_URL="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg"
 GITEE_URL="https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg"
 
-# 下载单个文件的函数：先 GitHub，失败回退 Gitee
+# 当前使用的源（首次用 GitHub；一旦 GitHub 失败则整体切换到 Gitee，后续文件不再尝试 GitHub）
+CURRENT_SOURCE="github"
+
+# 下载单个文件的函数：按 CURRENT_SOURCE 选择源，github 失败后整体切换到 gitee
 # 用法：download_file <相对路径> <输出路径>
 download_file() {
   local rel_path="$1"
   local out_path="$2"
 
-  # 先尝试 GitHub（10 秒连接超时，避免长时间挂起）
-  if curl -fsSL --connect-timeout 10 "$GITHUB_URL/$rel_path" -o "$out_path" 2>/dev/null; then
-    echo "✓ 从 GitHub 下载 $rel_path"
-    return 0
+  # 若当前源是 github，先尝试 GitHub（10 秒连接超时，避免长时间挂起）
+  if [ "$CURRENT_SOURCE" = "github" ]; then
+    if curl -fsSL --connect-timeout 10 "$GITHUB_URL/$rel_path" -o "$out_path" 2>/dev/null; then
+      echo "✓ 从 GitHub 下载 $rel_path"
+      return 0
+    fi
+    # GitHub 失败，整体切换到 Gitee，后续文件直接走 Gitee 不再尝试 GitHub
+    echo "… GitHub 不可达，整体切换到 Gitee 镜像（后续文件直接使用 Gitee）"
+    CURRENT_SOURCE="gitee"
   fi
 
-  # GitHub 失败，回退 Gitee 镜像
-  echo "… GitHub 不可达，回退到 Gitee 镜像下载 $rel_path"
+  # 当前源是 gitee（首次即失败，或由 github 切换而来）
   if curl -fsSL --connect-timeout 10 "$GITEE_URL/$rel_path" -o "$out_path" 2>/dev/null; then
     echo "✓ 从 Gitee 镜像下载 $rel_path"
     return 0
