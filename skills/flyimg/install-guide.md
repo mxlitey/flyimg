@@ -23,9 +23,9 @@
 
 | 工具 | 全局 Skill 目录 | `{baseDir}` 占位符 |
 |---|---|---|
-| **Claude Code** | `~/.claude/skills/flyimg-upload/` | 不替换，需用实际路径 |
-| **Codex CLI** | `~/.agents/skills/flyimg-upload/` | 不替换，需用实际路径 |
-| **OpenClaw（龙虾）** | `~/.openclaw/skills/flyimg-upload/` | ✅ 自动替换为实际路径 |
+| **Claude Code** | `~/.claude/skills/flyimg/` | 不替换，需用实际路径 |
+| **Codex CLI** | `~/.agents/skills/flyimg/` | 不替换，需用实际路径 |
+| **OpenClaw（龙虾）** | `~/.openclaw/skills/flyimg/` | ✅ 自动替换为实际路径 |
 
 > 不支持 Cursor / Windsurf / Cline（它们使用规则文件注入模式，不执行脚本）。
 
@@ -64,20 +64,20 @@ INSTALL_ROOT=""
 # 方式1：检查环境变量（各工具特有）
 if [ -n "${CLAUDE_CODE:-}" ] || [ -n "${CLAUDECODE:-}" ]; then
   CURRENT_TOOL="claude"
-  INSTALL_ROOT="$HOME/.claude/skills/flyimg-upload"
+  INSTALL_ROOT="$HOME/.claude/skills/flyimg"
 elif [ -n "${CODEX_CLI:-}" ] || [ -n "${CODEX_HOME:-}" ]; then
   CURRENT_TOOL="codex"
-  INSTALL_ROOT="$HOME/.agents/skills/flyimg-upload"
+  INSTALL_ROOT="$HOME/.agents/skills/flyimg"
 elif [ -n "${OPENCLAW:-}" ] || [ -n "${OPENCLAW_WORKSPACE:-}" ]; then
   CURRENT_TOOL="openclaw"
-  INSTALL_ROOT="$HOME/.openclaw/skills/flyimg-upload"
+  INSTALL_ROOT="$HOME/.openclaw/skills/flyimg"
 # 方式2：检查父进程名
 else
   PARENT_COMM=$(ps -o comm= -p $PPID 2>/dev/null | tr -d ' ')
   case "$PARENT_COMM" in
-    *claude*)   CURRENT_TOOL="claude";   INSTALL_ROOT="$HOME/.claude/skills/flyimg-upload" ;;
-    *codex*)    CURRENT_TOOL="codex";    INSTALL_ROOT="$HOME/.agents/skills/flyimg-upload" ;;
-    *openclaw*|*claw*) CURRENT_TOOL="openclaw"; INSTALL_ROOT="$HOME/.openclaw/skills/flyimg-upload" ;;
+    *claude*)   CURRENT_TOOL="claude";   INSTALL_ROOT="$HOME/.claude/skills/flyimg" ;;
+    *codex*)    CURRENT_TOOL="codex";    INSTALL_ROOT="$HOME/.agents/skills/flyimg" ;;
+    *openclaw*|*claw*) CURRENT_TOOL="openclaw"; INSTALL_ROOT="$HOME/.openclaw/skills/flyimg" ;;
   esac
 fi
 
@@ -85,9 +85,9 @@ fi
 if [ -z "$CURRENT_TOOL" ]; then
   echo "⚠ 自动检测未识别到当前工具。"
   echo "  请 Agent（LLM）根据自身运行环境直接确定 CURRENT_TOOL 和 INSTALL_ROOT："
-  echo "  - 运行在 Claude Code 中 → CURRENT_TOOL=claude, INSTALL_ROOT=~/.claude/skills/flyimg-upload"
-  echo "  - 运行在 Codex CLI 中   → CURRENT_TOOL=codex,  INSTALL_ROOT=~/.agents/skills/flyimg-upload"
-  echo "  - 运行在 OpenClaw 中     → CURRENT_TOOL=openclaw, INSTALL_ROOT=~/.openclaw/skills/flyimg-upload"
+  echo "  - 运行在 Claude Code 中 → CURRENT_TOOL=claude, INSTALL_ROOT=~/.claude/skills/flyimg"
+  echo "  - 运行在 Codex CLI 中   → CURRENT_TOOL=codex,  INSTALL_ROOT=~/.agents/skills/flyimg"
+  echo "  - 运行在 OpenClaw 中     → CURRENT_TOOL=openclaw, INSTALL_ROOT=~/.openclaw/skills/flyimg"
   echo ""
   echo "  确定后继续执行步骤 2。"
   # Agent 在此暂停，自行判断后继续（不要让用户选）
@@ -107,13 +107,13 @@ fi
 ```bash
 # 使用步骤 1 确定的 INSTALL_ROOT
 # 若步骤 1 脚本未导出变量，Agent 需自行设置，例如：
-# INSTALL_ROOT="$HOME/.claude/skills/flyimg-upload"  # 根据当前工具替换
+# INSTALL_ROOT="$HOME/.claude/skills/flyimg"  # 根据当前工具替换
 
 # 创建目录
 mkdir -p "$INSTALL_ROOT/scripts"
 
 # GitHub raw 文件基础路径
-BASE_URL="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg-upload"
+BASE_URL="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg"
 
 # 下载 SKILL.md
 if ! curl -fsSL "$BASE_URL/SKILL.md" -o "$INSTALL_ROOT/SKILL.md"; then
@@ -148,9 +148,9 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 
 **Skill 创建后不会立即生效，必须重启 Agent 工具才能加载。** 明确告知用户：
 
-- **Claude Code**：完全退出（cmd-Q / Ctrl-C 后重新打开），任意目录运行 `claude`，输入 `/` 查看是否出现 `flyimg-upload`
+- **Claude Code**：完全退出（cmd-Q / Ctrl-C 后重新打开），任意目录运行 `claude`，输入 `/` 查看是否出现 `flyimg`
 - **Codex CLI**：重启 Codex 会话，运行 `codex` 检查 skill 加载日志
-- **OpenClaw（龙虾）**：在「技能模块」面板查看是否出现 `flyimg-upload`，或重启龙虾进程
+- **OpenClaw（龙虾）**：在「技能模块」面板查看是否出现 `flyimg`，或重启龙虾进程
 
 > 全局安装后，用户在**任意项目目录**都能使用本 Skill，无需在每个项目里重复安装。
 
@@ -225,7 +225,7 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 ## 十、GitHub 源仓库
 
 - 仓库：https://github.com/mxlitey/flyimg
-- Skill 目录：`skills/flyimg-upload/`
+- Skill 目录：`skills/flyimg/`
 - 分支：`main`
 
 如需获取最新版本或查看源码，访问上述仓库。
