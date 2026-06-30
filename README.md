@@ -109,38 +109,29 @@
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时） |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
-| `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔 |
+| `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置，格式：`次数;分钟1;分钟2;...`，0表示永不过期 |
 
 > **区别**：Variables 可以在部署日志中显示，适合非敏感配置；Secrets 会被加密隐藏，适合密钥等敏感信息。
 
 <details>
-<summary>📋 ALLOWED_TYPES 常用 MIME 类型参考</summary>
+<summary>📋 ALLOWED_TYPES 常用扩展名参考</summary>
 
-**图片**：
-- `image/jpeg` — JPG
-- `image/png` — PNG
-- `image/gif` — GIF
-- `image/webp` — WebP
-- `image/svg+xml` — SVG
-- `image/bmp` — BMP
-- `image/x-icon` — ICO
+> 填写文件扩展名（不含点），逗号分隔，不区分大小写。设为 `*` 表示不限制文件类型。
 
-**音频**：
-- `audio/mpeg` — MP3
-- `audio/wav` — WAV
-- `audio/ogg` — OGG
-- `audio/mp4` — M4A
-- `audio/aac` — AAC
+**图片**：`jpg` / `jpeg`、`png`、`gif`、`webp`、`svg`、`bmp`、`ico`
 
-**视频**：
-- `video/mp4` — MP4
-- `video/webm` — WebM
-- `video/quicktime` — MOV
-- `video/x-msvideo` — AVI
+**音频**：`mp3`、`wav`、`ogg`、`m4a`、`aac`、`flac`
 
-**示例**：同时允许图片和视频 → `image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm`
+**视频**：`mp4`、`webm`、`mov`、`avi`、`mkv`
+
+**文档/其他**：`zip`、`rar`、`7z`、`tar`、`gz`、`pdf`、`doc` / `docx`、`xls` / `xlsx`、`ppt` / `pptx`、`json`、`txt`、`md`、`csv`、`html`、`js`、`ts`、`py`、`java`、`go`、`rs`、`c` / `cpp`、`h`
+
+**示例**：
+- 只允许图片 → `jpg,png,gif,webp,svg`
+- 接收压缩包和 PDF → `zip,pdf`
+- 不限制任何类型 → `*`
 
 </details>
 
@@ -360,7 +351,7 @@ curl https://your-worker.workers.dev/stats
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时），同时决定 R2 缓存的 max-age |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
-| `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔 |
+| `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*` | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置：`次数;分钟1;分钟2;...`，0 表示永不过期 |
 
