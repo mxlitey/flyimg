@@ -138,7 +138,10 @@ function isUserTagRoute(pathname) {
 }
 
 function getFileExtension(mimeType) {
-  return MIME_TO_EXT[mimeType] || mimeType.split('/')[1] || 'bin';
+  if (MIME_TO_EXT[mimeType]) return MIME_TO_EXT[mimeType];
+  if (!mimeType || mimeType === 'application/octet-stream') return 'bin';
+  const sub = mimeType.split('/')[1];
+  return sub || 'bin';
 }
 
 function generateFileName(mimeType) {
@@ -263,13 +266,17 @@ function getConfig(env) {
   const maxRenewCount = renewParts[0] || 3;
   const renewDurations = renewParts.slice(1).filter(n => !isNaN(n) && n >= 0);
 
+  const allowedTypesRaw = (env.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml').trim();
+  const unlimitedTypes = allowedTypesRaw === '*';
+
   cachedConfig = {
     R2_BUCKET: env.R2_BUCKET,
     R2_PUBLIC_DOMAIN: sanitizeR2Domain(env.R2_PUBLIC_DOMAIN),
     EXPIRE_HOURS: expireHours,
     MAX_FILE_SIZE: parseInt(env.MAX_FILE_SIZE || '20', 10) * 1024 * 1024,
     MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000', 10) * 1024 * 1024,
-    ALLOWED_TYPES: (env.ALLOWED_TYPES || 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml').split(',').map(t => t.trim()),
+    ALLOWED_TYPES: unlimitedTypes ? [] : allowedTypesRaw.split(',').map(t => t.trim()),
+    UNLIMITED_TYPES: unlimitedTypes,
     CRON_SECRET: env.CRON_SECRET || '',
     CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS ? env.CORS_ALLOWED_ORIGINS.split(',').map(t => t.trim()) : null,
     CACHE_MAX_AGE: expireHours * 3600,
@@ -347,22 +354,24 @@ async function handleUpload(request, env, CONFIG) {
       return jsonResponse({ error: '未上传文件' }, 400, origin, CONFIG);
     }
 
-    if (!CONFIG.ALLOWED_TYPES.includes(file.type)) {
+    if (!CONFIG.UNLIMITED_TYPES && !CONFIG.ALLOWED_TYPES.includes(file.type)) {
       const allowedDisplay = CONFIG.ALLOWED_TYPES.map(t => getFileExtension(t).toUpperCase()).join('、');
       return jsonResponse({ error: `不支持的文件类型，仅支持：${allowedDisplay}` }, 400, origin, CONFIG);
     }
+
+    const mimeType = file.type || 'application/octet-stream';
 
     if (file.size > CONFIG.MAX_FILE_SIZE) {
       const maxMB = CONFIG.MAX_FILE_SIZE / (1024 * 1024);
       return jsonResponse({ error: `文件大小超过${maxMB}MB限制` }, 400, origin, CONFIG);
     }
 
-    if (file.type === 'image/svg+xml') {
+    if (mimeType === 'image/svg+xml') {
       const svgText = await file.text();
       if (!verifySvgContent(svgText)) {
         return jsonResponse({ error: 'SVG文件包含不安全内容（脚本或事件处理器）' }, 400, origin, CONFIG);
       }
-      if (!await verifyFileSignature(file, file.type)) {
+      if (!await verifyFileSignature(file, mimeType)) {
         return jsonResponse({ error: '文件内容与声明类型不匹配' }, 400, origin, CONFIG);
       }
 
@@ -374,13 +383,13 @@ async function handleUpload(request, env, CONFIG) {
         return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
       }
 
-      const fileName = generateFileName(file.type);
+      const fileName = generateFileName(mimeType);
       const timestamp = Date.now();
       const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 
       try {
         await env.R2_BUCKET.put(fileName, svgText, {
-          httpMetadata: { contentType: file.type, cacheControl: `public, max-age=${CONFIG.CACHE_MAX_AGE}` },
+          httpMetadata: { contentType: mimeType, cacheControl: `public, max-age=${CONFIG.CACHE_MAX_AGE}` },
           customMetadata: { userTag },
         });
       } catch {
@@ -402,7 +411,7 @@ async function handleUpload(request, env, CONFIG) {
       }, 200, origin, CONFIG);
     }
 
-    if (!await verifyFileSignature(file, file.type)) {
+    if (!await verifyFileSignature(file, mimeType)) {
       return jsonResponse({ error: '文件内容与声明类型不匹配，可能存在安全风险' }, 400, origin, CONFIG);
     }
 
@@ -414,13 +423,13 @@ async function handleUpload(request, env, CONFIG) {
       return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
     }
 
-    const fileName = generateFileName(file.type);
+    const fileName = generateFileName(mimeType);
     const timestamp = Date.now();
     const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 
     try {
       await env.R2_BUCKET.put(fileName, file.stream(), {
-        httpMetadata: { contentType: file.type, cacheControl: `public, max-age=${CONFIG.CACHE_MAX_AGE}` },
+        httpMetadata: { contentType: mimeType, cacheControl: `public, max-age=${CONFIG.CACHE_MAX_AGE}` },
         customMetadata: { userTag },
       });
     } catch {

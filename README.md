@@ -109,7 +109,7 @@
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时） |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
-| `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔 |
+| `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置，格式：`次数;分钟1;分钟2;...`，0表示永不过期 |
 
@@ -360,7 +360,7 @@ curl https://your-worker.workers.dev/stats
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时），同时决定 R2 缓存的 max-age |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
-| `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔 |
+| `ALLOWED_TYPES` | `image/jpeg,image/png,image/gif,image/webp,image/svg+xml` | 允许的 MIME 类型，逗号分隔；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*` | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置：`次数;分钟1;分钟2;...`，0 表示永不过期 |
 
