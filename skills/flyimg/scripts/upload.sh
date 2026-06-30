@@ -74,9 +74,21 @@ if [ -z "$URL" ]; then
   exit 5
 fi
 
-# 输出 JSON 结果到 stdout
+# 将 UTC 时间（ISO 8601，如 2025-06-30T12:00:00.000Z）转换为北京时间（UTC+8）
+# 输出格式: 2025-06-30 20:00:00
 if [ -n "$EXPIRE_AT" ]; then
-  printf '{"success": true, "url": "%s", "user_tag": "%s", "expireAt": "%s"}\n' "$URL" "$USER_TAG" "$EXPIRE_AT"
+  # 尝试 GNU date（Linux 常见）: date -d "<UTC> +8 hours" +"%Y-%m-%d %H:%M:%S"
+  BEIJING_EXPIRE=$(date -d "$EXPIRE_AT +8 hours" +"%Y-%m-%d %H:%M:%S" 2>/dev/null) || \
+  # 降级 BSD date（macOS 默认）: date -j -f "%Y-%m-%dT%H:%M:%S" "<去掉毫秒Z>" "+%Y-%m-%d %H:%M:%S" 后再加 8 小时
+  BEIJING_EXPIRE=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${EXPIRE_AT%%.*}" +"%Y-%m-%d %H:%M:%S" 2>/dev/null | \
+    awk -v t=8 '{split($2,a,":"); m=a[1]*60+a[2]+t*60; h=int(m/60)%24; m=m%60; printf "%s %02d:%02d:%s\n",$1,h,m,a[3]}') || \
+  # 全部失败则保留原始 UTC 值并标注
+  BEIJING_EXPIRE="${EXPIRE_AT} (UTC)"
+fi
+
+# 输出 JSON 结果到 stdout（expireAt 为北京时间）
+if [ -n "$EXPIRE_AT" ]; then
+  printf '{"success": true, "url": "%s", "user_tag": "%s", "expireAt": "%s"}\n' "$URL" "$USER_TAG" "$BEIJING_EXPIRE"
 else
   printf '{"success": true, "url": "%s", "user_tag": "%s"}\n' "$URL" "$USER_TAG"
 fi

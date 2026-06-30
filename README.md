@@ -487,11 +487,87 @@ flyimg/
 ├── worker.js             # Worker 后端 API + 静态资源路由
 ├── migrations/
 │   └── 0001_init.sql     # D1 初始化
+├── skills/
+│   └── flyimg/           # Agent Skill（详见下方"Skill"章节）
+│       ├── SKILL.md      # Skill 入口：触发描述 + 调用流程
+│       ├── install-guide.md  # 安装指南（供 AI Agent 读取）
+│       └── scripts/
+│           ├── setup.sh  # 配置 Worker 地址
+│           └── upload.sh # 上传脚本（生成 user_tag + 调用 API）
 ├── wrangler.toml         # Worker 配置（含 Assets）
 ├── .github/workflows/
 │   └── deploy.yml        # 自动部署
 └── README.md
 ```
+
+***
+
+## 🤖 Skill
+
+本项目提供一个遵循 **AgentSkills 规范** 的 Skill，让 AI Agent（Claude Code、Codex CLI、OpenClaw 龙虾等）能够把生成的产物（图片、PDF、压缩包、代码文件等）上传到 Flyimg 并获取公开下载链接分享给用户。
+
+### 核心特性
+
+- 首次使用时询问用户的 Flyimg Worker 地址并写入本地配置
+- 每次上传基于时间戳+随机数生成 `user_tag`（简单加密标识）
+- 上传后向用户返回下载链接 + `user_tag` + 过期时间（北京时间）
+
+### 兼容的 Agent 工具
+
+| 工具 | 全局 Skill 目录 | `{baseDir}` 占位符 |
+|---|---|---|
+| **Claude Code** | `~/.claude/skills/flyimg/` | 不替换，需用实际路径 |
+| **Codex CLI** | `~/.agents/skills/flyimg/` | 不替换，需用实际路径 |
+| **OpenClaw（龙虾）** | `~/.openclaw/skills/flyimg/` | ✅ 自动替换为实际路径 |
+
+> 不支持 Cursor / Windsurf / Cline（它们使用规则文件注入模式，不执行脚本）。
+
+### 安装方式
+
+把下面的安装指南链接发给你的 Agent，附一句话指令即可：
+
+```
+https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md
+```
+
+示例指令：
+
+> 请读取这个链接的内容并按文档安装 Flyimg 上传 Skill：https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md
+
+Agent 会自动：
+
+1. 识别当前正在运行的工具（Claude Code / Codex CLI / OpenClaw）
+2. 从 GitHub 下载 `SKILL.md`、`setup.sh`、`upload.sh` 到该工具的全局 skill 目录
+3. 设置脚本可执行权限
+4. 提示你重启工具
+
+### 首次使用
+
+安装并重启后，对 Agent 说"上传 xxx 文件"之类的话，Skill 会自动触发：
+
+1. Agent 检查 `scripts/config.json` 是否存在
+2. **不存在 → 询问你**："请提供你部署的 Flyimg Worker 地址"
+3. 你回答后，Agent 自动调用 `setup.sh` 写入配置
+4. 之后每次上传会自动生成随机 `user_tag` 并上传，返回下载链接 + `user_tag` + 过期时间
+
+### user_tag 的作用
+
+每次上传生成形如 `oc_<时间戳>_<随机串>` 的 `user_tag`，例如 `oc_1719000000_a1b2c3d4`：
+
+- **简单加密**：不同上传使用不同标识，避免被批量遍历
+- **查询凭据**：可在 Flyimg 前端用此 `user_tag` 查询本次上传的文件列表
+- **请妥善保管**：相当于该次上传的查询密钥
+
+### 文件位置
+
+Skill 源文件位于本仓库的 [skills/flyimg/](skills/flyimg/) 目录：
+
+| 文件 | 作用 |
+|---|---|
+| [SKILL.md](skills/flyimg/SKILL.md) | Skill 入口：触发描述 + 调用流程 |
+| [install-guide.md](skills/flyimg/install-guide.md) | 安装指南（供 AI Agent 读取） |
+| [scripts/setup.sh](skills/flyimg/scripts/setup.sh) | 配置脚本：写入 Worker 地址 |
+| [scripts/upload.sh](skills/flyimg/scripts/upload.sh) | 上传脚本：生成 user_tag + 调用 API + UTC→北京时间 |
 
 ***
 
