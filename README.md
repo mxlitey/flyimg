@@ -18,7 +18,7 @@
 - 🕒 **自动清理**：Cron 定时删除过期文件，支持自定义过期时间
 - 🎨 **明暗主题**：自动适配系统主题，支持手动切换
 - 📱 **全响应式**：拖拽 / Ctrl+V 粘贴 / 点击上传
-- 🤖 **Agent Skill**：提供遵循 AgentSkills 规范（agentskills.io）的上传 Skill，兼容任何支持该规范的 Agent 工具（Claude Code / Codex CLI / OpenClaw / Hermes 等），让 AI Agent 一键上传产物并返回公开下载链接（GitHub 主源 + Gitee 镜像，国内可用）
+- 🤖 **Agent Skill**：兼容任何支持 agentskills.io 规范的 Agent 工具，让 AI Agent 一键上传产物并返回公开下载链接（GitHub 主源 + Gitee 镜像，国内可用）
 - 💰 **完全免费**：依赖 Cloudflare 免费额度，日常使用零成本
 
 ***
