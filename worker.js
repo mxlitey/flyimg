@@ -363,15 +363,10 @@ async function handleUpload(request, env, CONFIG) {
       ? originalName.slice(originalName.lastIndexOf('.') + 1).toLowerCase()
       : '';
     const mimeType = file.type || 'application/octet-stream';
-    const mimeExt = getFileExtension(mimeType);
 
     if (!CONFIG.UNLIMITED_TYPES
-        && !CONFIG.ALLOWED_TYPES.includes(mimeType.toLowerCase())
-        && !CONFIG.ALLOWED_TYPES.includes(mimeExt)
-        && !CONFIG.ALLOWED_TYPES.includes(originalExt)) {
-      const allowedDisplay = CONFIG.ALLOWED_TYPES
-        .map(t => t.includes('/') ? t : t.toUpperCase())
-        .join('、');
+        && !(originalExt && CONFIG.ALLOWED_TYPES.includes(originalExt))) {
+      const allowedDisplay = CONFIG.ALLOWED_TYPES.map(t => t.toUpperCase()).join('、');
       return jsonResponse({ error: `不支持的文件类型，仅支持：${allowedDisplay}` }, 400, origin, CONFIG);
     }
 
