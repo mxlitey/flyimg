@@ -144,16 +144,26 @@ function getFileExtension(mimeType) {
   return sub || 'bin';
 }
 
-function generateFileName(mimeType, originalExt) {
+function sanitizeOriginalName(name) {
+  if (!name) return '';
+  const dotIndex = name.lastIndexOf('.');
+  let base = dotIndex > 0 ? name.slice(0, dotIndex) : name;
+  base = base.replace(/[^\w\u4e00-\u9fa5-]/g, '_').replace(/_+/g, '_').replace(/^[-_]+|[-_]+$/g, '');
+  return base.slice(0, 80);
+}
+
+function generateFileName(mimeType, originalExt, originalName) {
   const timestamp = Date.now();
   const random1 = Math.random().toString(36).substring(2, 10);
-  const random2 = crypto.randomUUID().split('-')[0];
   let ext = MIME_TO_EXT[mimeType];
   if (!ext) {
     const cleaned = originalExt ? originalExt.toLowerCase().replace(/^[.]+/, '') : '';
     ext = cleaned || getFileExtension(mimeType);
   }
-  return `${timestamp}-${random1}-${random2}.${ext}`;
+  const base = sanitizeOriginalName(originalName);
+  return base
+    ? `${timestamp}-${random1}-${base}.${ext}`
+    : `${timestamp}-${random1}.${ext}`;
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -392,7 +402,7 @@ async function handleUpload(request, env, CONFIG) {
         return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
       }
 
-      const fileName = generateFileName(mimeType, originalExt);
+      const fileName = generateFileName(mimeType, originalExt, originalName);
       const timestamp = Date.now();
       const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 
@@ -432,7 +442,7 @@ async function handleUpload(request, env, CONFIG) {
       return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
     }
 
-    const fileName = generateFileName(mimeType, originalExt);
+    const fileName = generateFileName(mimeType, originalExt, originalName);
     const timestamp = Date.now();
     const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 
@@ -579,7 +589,7 @@ async function handleDelete(request, env, CONFIG) {
       return jsonResponse({ error: '缺少filename参数' }, 400, origin, CONFIG);
     }
 
-    if (!/^[a-zA-Z0-9_\-.]+$/.test(filename)) {
+    if (!/^[^\x00-\x1f\x7f\/\\]+$/.test(filename)) {
       return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
     }
 
@@ -653,7 +663,7 @@ async function handleRenew(request, env, CONFIG) {
       return jsonResponse({ error: '缺少filename参数' }, 400, origin, CONFIG);
     }
 
-    if (!/^[a-zA-Z0-9_\-.]+$/.test(filename)) {
+    if (!/^[^\x00-\x1f\x7f\/\\]+$/.test(filename)) {
       return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
     }
 

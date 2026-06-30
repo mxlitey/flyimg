@@ -74,6 +74,7 @@ const UserPage = {
     const safeUrl = Utils.escapeAttr(img.url || '');
     const displayUrl = Utils.escapeHtml(img.url || '');
     const safeFilename = Utils.escapeAttr(img.filename || '');
+    const displayFilename = Utils.escapeHtml(img.filename || '');
     const renewCount = img.renew_count || 0;
     const canRenew = renewCount < this.renewConfig.max_count;
     const colors = Theme.getThemeColors();
@@ -88,7 +89,8 @@ const UserPage = {
         <img src="${displayUrl}" alt="资源" class="w-full h-40 object-cover" loading="lazy" onerror="this.style.display='none'">
       </div>
       <div class="p-3">
-        <p class="text-xs mb-1" style="color: ${colors.info}">${Utils.formatDate(img.created_at)}</p>
+        <p class="text-sm font-mono truncate mb-1" style="color: ${colors.filename}" title="${safeFilename}">${displayFilename}</p>
+        <p class="text-xs" style="color: ${colors.info}">${Utils.formatDate(img.created_at)}</p>
         <p class="text-xs" style="color: ${colors.info}">${Utils.formatExpireTime(img.expire_at)} ${renewBadge}</p>
         <p class="text-xs mt-1" style="color: ${colors.info}">${Utils.formatBytes(img.size)}</p>
         <div class="flex gap-2 mt-2">
