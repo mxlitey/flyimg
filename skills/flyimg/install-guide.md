@@ -1,6 +1,8 @@
 # Flyimg Upload Skill 安装指南（AgentSkills 规范）
 
-> **本文档供 AI Agent 读取。** 用户把本文档的链接发给 Agent 后，Agent 应按本文档指令从 GitHub 下载 Skill 文件并完成安装，**不要本地创建文件内容**。
+> **本文档供 AI Agent 读取。** 用户把本文档的链接发给 Agent 后，Agent 应按本文档指令从**主备双源**下载 Skill 文件并完成安装，**不要本地创建文件内容**。
+>
+> 本文档本身也有两个获取入口：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md`（主源）与 `https://img.lii.qzz.io/install-guide.md`（备源，国内友好）。
 >
 > 本指南采用**识别当前工具 + 全局安装**模式：只安装到**当前正在运行本安装流程的 Agent 工具**的全局 skill 目录，不安装到其他工具。
 
@@ -102,7 +104,13 @@ fi
 - 不要询问用户"你用的是哪个工具"——Agent 自己就能判断
 - 只装到**当前工具**的全局目录，**不要**装到其他工具目录
 
-### 步骤 2：从 GitHub 下载 Skill 文件到当前工具的全局目录
+### 步骤 2：下载 Skill 文件到当前工具的全局目录（主备双源，自动降级）
+
+由于 GitHub raw 链接在国内可能无法访问，本步骤采用**主备双源**下载：
+- **主源**：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg`（GitHub raw）
+- **备源**：`https://img.lii.qzz.io/skills/flyimg`（由 Flyimg Worker 域名托管，国内友好）
+
+每个文件先尝试主源，失败则自动切换到备源。
 
 ```bash
 # 使用步骤 1 确定的 INSTALL_ROOT
@@ -112,22 +120,38 @@ fi
 # 创建目录
 mkdir -p "$INSTALL_ROOT/scripts"
 
-# GitHub raw 文件基础路径
-BASE_URL="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg"
+# 下载源（主备双源，自动降级）
+PRIMARY_BASE="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg"
+FALLBACK_BASE="https://img.lii.qzz.io/skills/flyimg"
+
+# 单文件下载函数：先主源，失败则备源
+download_file() {
+  local rel="$1"    # 相对路径，如 SKILL.md / scripts/setup.sh
+  local dest="$2"   # 本地目标路径
+
+  if curl -fsSL --max-time 15 "${PRIMARY_BASE}/${rel}" -o "$dest" 2>/dev/null; then
+    echo "  ✓ ${rel} (主源)"
+    return 0
+  fi
+  echo "  ⚠ 主源失败，切换备用源: ${FALLBACK_BASE}/${rel}" >&2
+  if curl -fsSL --max-time 15 "${FALLBACK_BASE}/${rel}" -o "$dest" 2>/dev/null; then
+    echo "  ✓ ${rel} (备源)"
+    return 0
+  fi
+  echo "✗ 下载失败（主备源均不可用）: ${rel}" >&2
+  return 1
+}
 
 # 下载 SKILL.md
-if ! curl -fsSL "$BASE_URL/SKILL.md" -o "$INSTALL_ROOT/SKILL.md"; then
-  echo "✗ 下载 SKILL.md 失败" >&2
+if ! download_file "SKILL.md" "$INSTALL_ROOT/SKILL.md"; then
   exit 1
 fi
 
 # 下载脚本
-if ! curl -fsSL "$BASE_URL/scripts/setup.sh" -o "$INSTALL_ROOT/scripts/setup.sh"; then
-  echo "✗ 下载 setup.sh 失败" >&2
+if ! download_file "scripts/setup.sh" "$INSTALL_ROOT/scripts/setup.sh"; then
   exit 1
 fi
-if ! curl -fsSL "$BASE_URL/scripts/upload.sh" -o "$INSTALL_ROOT/scripts/upload.sh"; then
-  echo "✗ 下载 upload.sh 失败" >&2
+if ! download_file "scripts/upload.sh" "$INSTALL_ROOT/scripts/upload.sh"; then
   exit 1
 fi
 
@@ -142,7 +166,7 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 **验证要点**：
 - 目录下有 3 个文件（`SKILL.md`、`scripts/setup.sh`、`scripts/upload.sh`）
 - 两个脚本有可执行权限（`-rwx` 开头）
-- 若任一 `curl` 失败（非 0 退出），停止安装并告知用户：可能是网络问题或 GitHub 仓库地址变更
+- 若某个文件主备源均下载失败（函数返回非 0），停止安装并告知用户：可能是网络问题或两处源地址均变更
 
 ### 步骤 3：告知用户重启 Agent 工具
 
@@ -198,7 +222,7 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| `curl` 下载失败 | 网络问题或 GitHub 仓库地址变更 | 检查网络；确认仓库 `mxlitey/flyimg` 仍可访问 |
+| `curl` 下载失败（主备源均失败） | 网络问题或两处源地址变更 | 检查网络；确认 GitHub 仓库 `mxlitey/flyimg` 与 `img.lii.qzz.io` 均可访问；可手动指定单一源重试 |
 | `Config not found` | 未配置 Worker 地址 | 运行 `setup.sh` 配置 |
 | HTTP 400 `不支持的文件类型` | 文件扩展名不在 `ALLOWED_TYPES` | 修改 Flyimg 部署的 `ALLOWED_TYPES` |
 | HTTP 400 `文件大小超过限制` | 文件超过 `MAX_FILE_SIZE` | 调大 `MAX_FILE_SIZE` 或压缩文件 |
@@ -222,10 +246,14 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 
 ---
 
-## 十、GitHub 源仓库
+## 十、源仓库与下载源
 
-- 仓库：https://github.com/mxlitey/flyimg
-- Skill 目录：`skills/flyimg/`
-- 分支：`main`
+- **源仓库**：https://github.com/mxlitey/flyimg
+- **Skill 目录**：`skills/flyimg/`
+- **分支**：`main`
 
-如需获取最新版本或查看源码，访问上述仓库。
+下载源（主备双源）：
+- **主源**（GitHub raw）：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg`
+- **备源**（国内友好，由 Flyimg Worker 域名托管）：`https://img.lii.qzz.io/skills/flyimg`
+
+> 备源内容由部署流程自动从源仓库同步，保持与主源一致。如需获取最新版本或查看源码，访问上述 GitHub 仓库。
