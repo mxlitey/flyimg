@@ -1,6 +1,8 @@
 # Flyimg Upload Skill 安装指南（AgentSkills 规范）
 
 > **本文档供 AI Agent 读取。** 用户把本文档的链接发给 Agent 后，Agent 应按本文档指令从 GitHub 下载 Skill 文件并完成安装，**不要本地创建文件内容**。
+>
+> 本指南采用**自动检测 + 全局安装**模式：自动识别用户机器上已安装的 Agent 工具，无需用户选择，直接安装到每个检测到的工具的全局 skill 目录。
 
 ---
 
@@ -17,13 +19,13 @@
 
 ## 二、兼容的 Agent 工具
 
-本 Skill 遵循 **AgentSkills 规范**（`SKILL.md` + YAML frontmatter），兼容以下工具：
+本 Skill 遵循 **AgentSkills 规范**（`SKILL.md` + YAML frontmatter），自动检测并安装到以下工具的全局目录：
 
-| 工具 | 项目级目录 | 全局级目录 | `{baseDir}` 占位符 |
-|---|---|---|---|
-| **Claude Code** | `.claude/skills/flyimg-upload/` | `~/.claude/skills/flyimg-upload/` | 不替换，需用实际路径 |
-| **Codex CLI** | `.agents/skills/flyimg-upload/` | `~/.agents/skills/flyimg-upload/` | 不替换，需用实际路径 |
-| **OpenClaw（龙虾）** | `<workspace>/skills/flyimg-upload/` | `~/.openclaw/skills/flyimg-upload/` | ✅ 自动替换为实际路径 |
+| 工具 | 全局 Skill 目录 | `{baseDir}` 占位符 |
+|---|---|---|
+| **Claude Code** | `~/.claude/skills/flyimg-upload/` | 不替换，需用实际路径 |
+| **Codex CLI** | `~/.agents/skills/flyimg-upload/` | 不替换，需用实际路径 |
+| **OpenClaw（龙虾）** | `~/.openclaw/skills/flyimg-upload/` | ✅ 自动替换为实际路径 |
 
 > 不支持 Cursor / Windsurf / Cline（它们使用规则文件注入模式，不执行脚本）。
 
@@ -35,85 +37,110 @@
 
 2. **运行环境**：
    - bash（Linux/macOS 自带；Windows 需 WSL 或 Git Bash）
-   - `curl`、`git`（基础工具，通常自带）
+   - `curl`（基础工具，通常自带）
 
-3. **已安装兼容的 Agent 工具**：Claude Code / Codex CLI / OpenClaw 任一。
+3. **已安装至少一个兼容的 Agent 工具**：Claude Code / Codex CLI / OpenClaw 任一。Agent 应自动检测，无需用户声明。
 
 ---
 
 ## 四、安装步骤
 
-### 步骤 1：确定用户使用的工具与安装位置
+### 步骤 1：自动检测已安装的 Agent 工具
 
-询问用户（若用户未明确指定）：
-
-1. **使用哪个 Agent 工具？**（Claude Code / Codex CLI / OpenClaw）
-2. **安装到项目级还是全局级？**
-   - 项目级：仅当前项目可用，可提交到 git 与团队共享
-   - 全局级：所有项目可用，仅本人使用
-
-根据选择确定**安装根目录** `<INSTALL_ROOT>`：
-
-| 工具 + 范围 | `<INSTALL_ROOT>` |
-|---|---|
-| Claude Code 项目级 | `<当前项目>/.claude/skills/flyimg-upload` |
-| Claude Code 全局级 | `~/.claude/skills/flyimg-upload` |
-| Codex CLI 项目级 | `<当前项目>/.agents/skills/flyimg-upload` |
-| Codex CLI 全局级 | `~/.agents/skills/flyimg-upload` |
-| OpenClaw 项目级 | `<当前工作区>/skills/flyimg-upload` |
-| OpenClaw 全局级 | `~/.openclaw/skills/flyimg-upload` |
-
-### 步骤 2：从 GitHub 下载 Skill 文件
-
-执行以下命令，直接从 GitHub 下载全部 3 个文件到 `<INSTALL_ROOT>`：
+执行以下检测脚本，识别用户机器上已安装的 Agent 工具及其全局 Skill 目录：
 
 ```bash
-# 设置安装根目录（替换为步骤1确定的路径）
-INSTALL_ROOT="<INSTALL_ROOT>"
+# 检测已安装的 Agent 工具，输出全局 skill 目录（每行一个）
+DETECTED_DIRS=()
 
-# 创建目录
-mkdir -p "$INSTALL_ROOT/scripts"
+# 检测 Claude Code：检查 ~/.claude/ 是否存在或 claude 命令是否可用
+if [ -d "$HOME/.claude" ] || command -v claude >/dev/null 2>&1; then
+  DETECTED_DIRS+=("$HOME/.claude/skills/flyimg-upload")
+  echo "✓ 检测到 Claude Code → $HOME/.claude/skills/flyimg-upload"
+fi
 
+# 检测 Codex CLI：检查 ~/.codex/、~/.agents/ 是否存在或 codex 命令是否可用
+if [ -d "$HOME/.codex" ] || [ -d "$HOME/.agents" ] || command -v codex >/dev/null 2>&1; then
+  DETECTED_DIRS+=("$HOME/.agents/skills/flyimg-upload")
+  echo "✓ 检测到 Codex CLI → $HOME/.agents/skills/flyimg-upload"
+fi
+
+# 检测 OpenClaw（龙虾）：检查 ~/.openclaw/ 是否存在或 openclaw 命令是否可用
+if [ -d "$HOME/.openclaw" ] || command -v openclaw >/dev/null 2>&1; then
+  DETECTED_DIRS+=("$HOME/.openclaw/skills/flyimg-upload")
+  echo "✓ 检测到 OpenClaw → $HOME/.openclaw/skills/flyimg-upload"
+fi
+
+# 若全部未检测到，提示用户
+if [ "${#DETECTED_DIRS[@]}" -eq 0 ]; then
+  echo "✗ 未检测到任何已安装的 Agent 工具（Claude Code / Codex CLI / OpenClaw）"
+  echo "  请先安装其中之一，或手动指定安装目录后重试。"
+  exit 1
+fi
+
+echo ""
+echo "检测到 ${#DETECTED_DIRS[@]} 个目标，准备下载安装..."
+```
+
+**处理逻辑**：
+- **检测到 1 个或多个**：继续步骤 2，为每个目录都安装一份（用户可能在多个工具间切换）
+- **检测到 0 个**：停止安装，告知用户需先安装 Claude Code / Codex CLI / OpenClaw 任一。若用户明确知道自己装了某个但脚本没识别到，可手动指定 `<INSTALL_ROOT>` 跳过检测
+
+### 步骤 2：从 GitHub 下载 Skill 文件到每个检测到的目录
+
+对步骤 1 检测到的每个目录，执行下载：
+
+```bash
 # GitHub raw 文件基础路径
 BASE_URL="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg-upload"
 
-# 下载 SKILL.md
-curl -fsSL "$BASE_URL/SKILL.md" -o "$INSTALL_ROOT/SKILL.md"
+# 遍历所有检测到的目录，逐一安装
+for INSTALL_ROOT in "${DETECTED_DIRS[@]}"; do
+  echo ""
+  echo "→ 安装到: $INSTALL_ROOT"
 
-# 下载脚本
-curl -fsSL "$BASE_URL/scripts/setup.sh" -o "$INSTALL_ROOT/scripts/setup.sh"
-curl -fsSL "$BASE_URL/scripts/upload.sh" -o "$INSTALL_ROOT/scripts/upload.sh"
+  # 创建目录
+  mkdir -p "$INSTALL_ROOT/scripts"
 
-# 设置脚本可执行权限
-chmod +x "$INSTALL_ROOT/scripts/setup.sh" "$INSTALL_ROOT/scripts/upload.sh"
+  # 下载 SKILL.md
+  if ! curl -fsSL "$BASE_URL/SKILL.md" -o "$INSTALL_ROOT/SKILL.md"; then
+    echo "✗ 下载 SKILL.md 失败，跳过此目录" >&2
+    continue
+  fi
 
-# 验证下载
-ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
+  # 下载脚本
+  if ! curl -fsSL "$BASE_URL/scripts/setup.sh" -o "$INSTALL_ROOT/scripts/setup.sh"; then
+    echo "✗ 下载 setup.sh 失败，跳过此目录" >&2
+    continue
+  fi
+  if ! curl -fsSL "$BASE_URL/scripts/upload.sh" -o "$INSTALL_ROOT/scripts/upload.sh"; then
+    echo "✗ 下载 upload.sh 失败，跳过此目录" >&2
+    continue
+  fi
+
+  # 设置脚本可执行权限
+  chmod +x "$INSTALL_ROOT/scripts/setup.sh" "$INSTALL_ROOT/scripts/upload.sh"
+
+  echo "✓ 安装完成"
+  ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts" | sed 's/^/    /'
+done
 ```
 
 **验证要点**：
-- 3 个文件都已下载（`SKILL.md`、`scripts/setup.sh`、`scripts/upload.sh`）
+- 每个目录下都有 3 个文件（`SKILL.md`、`scripts/setup.sh`、`scripts/upload.sh`）
 - 两个脚本有可执行权限（`-rwx` 开头）
-- 若任一 `curl` 失败（非 0 退出），停止安装并告知用户：可能是网络问题或 GitHub 仓库地址变更
+- 若某个 `curl` 失败（非 0 退出），跳过该目录并继续下一个；最后告知用户哪些目录安装成功、哪些失败
+- 若全部失败，停止安装并告知用户：可能是网络问题或 GitHub 仓库地址变更
 
-### 步骤 3：（可选）加入 .gitignore
-
-`scripts/config.json` 会在首次配置时生成，含用户专属 Worker 地址，不应提交到仓库。若用户的项目使用 git 且选择了**项目级安装**，建议在项目根 `.gitignore` 中追加：
-
-```
-# Flyimg Skill 本地配置（含 Worker 地址，勿提交）
-.claude/skills/flyimg-upload/scripts/config.json
-.agents/skills/flyimg-upload/scripts/config.json
-skills/flyimg-upload/scripts/config.json
-```
-
-### 步骤 4：告知用户重启 Agent 工具
+### 步骤 3：告知用户重启 Agent 工具
 
 **Skill 创建后不会立即生效，必须重启 Agent 工具才能加载。** 明确告知用户：
 
-- **Claude Code**：完全退出（cmd-Q / Ctrl-C 后重新打开），在项目目录运行 `claude`，输入 `/` 查看是否出现 `flyimg-upload`
+- **Claude Code**：完全退出（cmd-Q / Ctrl-C 后重新打开），任意目录运行 `claude`，输入 `/` 查看是否出现 `flyimg-upload`
 - **Codex CLI**：重启 Codex 会话，运行 `codex` 检查 skill 加载日志
 - **OpenClaw（龙虾）**：在「技能模块」面板查看是否出现 `flyimg-upload`，或重启龙虾进程
+
+> 全局安装后，用户在**任意项目目录**都能使用本 Skill，无需在每个项目里重复安装。
 
 ---
 
