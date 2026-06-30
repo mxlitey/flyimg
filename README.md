@@ -524,20 +524,25 @@ flyimg/
 
 ### 安装方式
 
-把下面的安装指南链接发给你的 Agent，附一句话指令即可：
+把下面的安装指南链接发给你的 Agent，附一句话指令即可。
 
-```
-https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md
-```
+> **国内用户提示**：GitHub raw 链接在国内可能无法访问，请改用 Gitee 镜像链接。文档内所有下载步骤已内置「先 GitHub，失败回退 Gitee」策略，无需手动切换。
 
-示例指令：
+| 源 | 安装指南链接 |
+|---|---|
+| **GitHub（主源）** | `https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md` |
+| **Gitee（国内镜像）** | `https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg/install-guide.md` |
+
+示例指令（任选其一）：
 
 > 请读取这个链接的内容并按文档安装 Flyimg 上传 Skill：https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md
+
+> 请读取这个链接的内容并按文档安装 Flyimg 上传 Skill（国内镜像）：https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg/install-guide.md
 
 Agent 会自动：
 
 1. 识别当前正在运行的工具（Claude Code / Codex CLI / OpenClaw）
-2. 从 GitHub 下载 `SKILL.md`、`setup.sh`、`upload.sh` 到该工具的全局 skill 目录
+2. 从 GitHub 下载 `SKILL.md`、`setup.sh`、`upload.sh` 到该工具的全局 skill 目录（GitHub 不可达时自动回退到 Gitee 镜像）
 3. 设置脚本可执行权限
 4. 提示你重启工具
 
