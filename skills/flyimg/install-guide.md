@@ -8,7 +8,11 @@
 > - GitHub：`https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg/install-guide.md`
 > - Gitee：`https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg/install-guide.md`
 >
-> **下载源策略**：本文档中所有从远程下载 Skill 文件的步骤均采用「**先 GitHub，失败回退 Gitee**」策略——先尝试 GitHub 源，连接失败或下载出错时自动改用 Gitee 镜像，确保国内/国外环境都能完成安装。
+> **下载源策略（按入口源一致）**：Agent 应根据**用户提供的安装指南链接来源**决定 Skill 文件的主下载源：
+> - 用户给的是 **GitHub** 链接 → 全程优先从 **GitHub** 下载，GitHub 不可达时回退 Gitee
+> - 用户给的是 **Gitee** 链接 → 全程优先从 **Gitee** 下载，Gitee 不可达时回退 GitHub
+>
+> 即"从哪来、从哪下"——用户从哪个源获取的本指南，就优先从同一个源下载 Skill 文件，另一个源仅作为网络故障时的兜底回退，确保国内外环境都能完成安装。
 
 ---
 
@@ -77,9 +81,13 @@ Agent 读取本文档后，需根据**自身当前运行环境**确定本 Skill 
 - 只装到**当前工具**的全局目录，**不要**装到其他工具目录
 - 确定后设好 `INSTALL_ROOT` 变量，继续执行步骤 2
 
-### 步骤 2：从远程下载 Skill 文件到当前工具的全局目录（先 GitHub，失败回退 Gitee）
+### 步骤 2：从远程下载 Skill 文件到当前工具的全局目录（按入口源一致，失败回退另一源）
 
-> **下载源策略**：国内访问 GitHub raw 可能超时，本步骤先尝试 GitHub，失败后自动回退到 Gitee 镜像，确保国内外环境都能装上。
+> **下载源策略（按入口源一致）**：Agent 根据用户提供的本安装指南链接来源决定主下载源：
+> - 用户给的是 GitHub 链接（`raw.githubusercontent.com/...`）→ 主源 `github`，备用 `gitee`
+> - 用户给的是 Gitee 链接（`raw.giteeusercontent.com/...`）→ 主源 `gitee`，备用 `github`
+>
+> 主源不可达时，自动回退到另一源作为兜底，确保国内外环境都能装上。
 
 ```bash
 # 使用步骤 1 确定的 INSTALL_ROOT（即当前 Agent 工具全局 skill 目录下的 flyimg/ 子目录）
@@ -92,37 +100,48 @@ Agent 读取本文档后，需根据**自身当前运行环境**确定本 Skill 
 # 创建目录
 mkdir -p "$INSTALL_ROOT/scripts"
 
-# 远程源：GitHub 主源 + Gitee 镜像（GitHub 不可访问时回退）
+# 远程源：GitHub + Gitee
 GITHUB_URL="https://raw.githubusercontent.com/mxlitey/flyimg/main/skills/flyimg"
 GITEE_URL="https://raw.giteeusercontent.com/litey/flyimg/raw/main/skills/flyimg"
 
-# 当前使用的源（首次用 GitHub；一旦 GitHub 失败则整体切换到 Gitee，后续文件不再尝试 GitHub）
-CURRENT_SOURCE="github"
+# ⚠️ Agent 必须根据用户提供的安装指南链接来源设置主源：
+#   - 用户给 GitHub 链接 → PRIMARY_SOURCE="github", FALLBACK_SOURCE="gitee"
+#   - 用户给 Gitee 链接  → PRIMARY_SOURCE="gitee",  FALLBACK_SOURCE="github"
+# 默认值仅作占位，Agent 应按用户入口链接覆盖这两个变量
+PRIMARY_SOURCE="github"
+FALLBACK_SOURCE="gitee"
 
-# 下载单个文件的函数：按 CURRENT_SOURCE 选择源，github 失败后整体切换到 gitee
+# 根据源名拼接 URL
+get_url() {
+  case "$1" in
+    github) echo "$GITHUB_URL/$2" ;;
+    gitee)  echo "$GITEE_URL/$2" ;;
+  esac
+}
+
+# 下载单个文件的函数：先走主源，主源失败则回退到备用源（10 秒连接超时，避免长时间挂起）
 # 用法：download_file <相对路径> <输出路径>
 download_file() {
   local rel_path="$1"
   local out_path="$2"
+  local primary_url fallback_url
+  primary_url=$(get_url "$PRIMARY_SOURCE" "$rel_path")
+  fallback_url=$(get_url "$FALLBACK_SOURCE" "$rel_path")
 
-  # 若当前源是 github，先尝试 GitHub（10 秒连接超时，避免长时间挂起）
-  if [ "$CURRENT_SOURCE" = "github" ]; then
-    if curl -fsSL --connect-timeout 10 "$GITHUB_URL/$rel_path" -o "$out_path" 2>/dev/null; then
-      echo "✓ 从 GitHub 下载 $rel_path"
-      return 0
-    fi
-    # GitHub 失败，整体切换到 Gitee，后续文件直接走 Gitee 不再尝试 GitHub
-    echo "… GitHub 不可达，整体切换到 Gitee 镜像（后续文件直接使用 Gitee）"
-    CURRENT_SOURCE="gitee"
-  fi
-
-  # 当前源是 gitee（首次即失败，或由 github 切换而来）
-  if curl -fsSL --connect-timeout 10 "$GITEE_URL/$rel_path" -o "$out_path" 2>/dev/null; then
-    echo "✓ 从 Gitee 镜像下载 $rel_path"
+  # 先尝试主源
+  if curl -fsSL --connect-timeout 10 "$primary_url" -o "$out_path" 2>/dev/null; then
+    echo "✓ 从 $PRIMARY_SOURCE 下载 $rel_path"
     return 0
   fi
 
-  echo "✗ 下载 $rel_path 失败（GitHub 与 Gitee 均不可用）" >&2
+  # 主源失败，回退到备用源
+  echo "… $PRIMARY_SOURCE 不可达，回退到 $FALLBACK_SOURCE"
+  if curl -fsSL --connect-timeout 10 "$fallback_url" -o "$out_path" 2>/dev/null; then
+    echo "✓ 从 $FALLBACK_SOURCE 下载 $rel_path"
+    return 0
+  fi
+
+  echo "✗ 下载 $rel_path 失败（$PRIMARY_SOURCE 与 $FALLBACK_SOURCE 均不可用）" >&2
   return 1
 }
 
@@ -144,7 +163,7 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 **验证要点**：
 - 目录下有 3 个文件（`SKILL.md`、`scripts/setup.sh`、`scripts/upload.sh`）
 - 两个脚本有可执行权限（`-rwx` 开头）
-- 若任一 `curl` 失败（非 0 退出，即 GitHub 与 Gitee 都失败），停止安装并告知用户：可能是网络问题或仓库地址变更
+- 若任一 `curl` 失败（非 0 退出，即主源与备用源都失败），停止安装并告知用户：可能是网络问题或仓库地址变更
 
 ### 步骤 3：告知用户重启 Agent 工具
 
@@ -226,7 +245,7 @@ bash {baseDir}/scripts/upload.sh "<文件1>" "<文件2>" "<文件3>"
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| `curl` 下载失败 | 网络问题或仓库地址变更（GitHub 与 Gitee 均不可达） | 检查网络；确认仓库 `mxlitey/flyimg`（GitHub）或 `litey/flyimg`（Gitee）仍可访问 |
+| `curl` 下载失败 | 网络问题或仓库地址变更（主源与备用源均不可达） | 检查网络；确认仓库 `mxlitey/flyimg`（GitHub）或 `litey/flyimg`（Gitee）仍可访问 |
 | `Config not found` | 未配置 Worker 地址 | 运行 `setup.sh` 配置 |
 | HTTP 400 `不支持的文件类型` | 文件扩展名不在 `ALLOWED_TYPES` | 修改 Flyimg 部署的 `ALLOWED_TYPES` |
 | HTTP 400 `文件大小超过限制` | 文件超过 `MAX_FILE_SIZE` | 调大 `MAX_FILE_SIZE` 或压缩文件 |
@@ -259,6 +278,6 @@ bash {baseDir}/scripts/upload.sh "<文件1>" "<文件2>" "<文件3>"
 
 - Skill 目录：`skills/flyimg/`
 - 分支：`main`
-- **优先使用 GitHub 源**；国内访问 GitHub 失败时使用 Gitee 镜像（本指南所有下载步骤已内置该回退逻辑）。
+- **按入口源一致下载**：用户从哪个源获取的本安装指南，就优先从该源下载 Skill 文件；该源不可达时回退到另一源作为兜底（本指南所有下载步骤已内置该回退逻辑）。
 
 如需获取最新版本或查看源码，访问上述任一仓库。
