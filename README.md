@@ -18,7 +18,7 @@
 - 🕒 **自动清理**：Cron 定时删除过期文件，支持自定义过期时间
 - 🎨 **明暗主题**：自动适配系统主题，支持手动切换
 - 📱 **全响应式**：拖拽 / Ctrl+V 粘贴 / 点击上传
-- 🤖 **Agent Skill**：提供遵循 AgentSkills 规范的上传 Skill，支持 Claude Code / Codex CLI / OpenClaw（龙虾），让 AI Agent 一键上传产物并返回公开下载链接（GitHub 主源 + Gitee 镜像，国内可用）
+- 🤖 **Agent Skill**：提供遵循 AgentSkills 规范（agentskills.io）的上传 Skill，兼容任何支持该规范的 Agent 工具（Claude Code / Codex CLI / OpenClaw / Hermes 等），让 AI Agent 一键上传产物并返回公开下载链接（GitHub 主源 + Gitee 镜像，国内可用）
 - 💰 **完全免费**：依赖 Cloudflare 免费额度，日常使用零成本
 
 ***
@@ -505,7 +505,7 @@ flyimg/
 
 ## 🤖 Skill
 
-本项目提供一个遵循 **AgentSkills 规范** 的 Skill，让 AI Agent（Claude Code、Codex CLI、OpenClaw 龙虾等）能够把生成的产物（图片、PDF、压缩包、代码文件等）上传到 Flyimg 并获取公开下载链接分享给用户。
+本项目提供一个遵循 **AgentSkills 规范**（对应 [agentskills.io](https://agentskills.io/specification) 开放标准）的 Skill，让任何兼容该规范的 AI Agent 能够把生成的产物（图片、PDF、压缩包、代码文件等）上传到 Flyimg 并获取公开下载链接分享给用户。
 
 ### 核心特性
 
@@ -515,13 +515,16 @@ flyimg/
 
 ### 兼容的 Agent 工具
 
+**任何兼容 agentskills.io 规范、支持 `SKILL.md` 并可执行 `scripts/` 下脚本的 Agent 工具**均可安装，由 Agent 根据自身运行环境确定全局 skill 目录并完成安装——无需逐一硬编码识别。以下为已知兼容工具（供参考，非穷举）：
+
 | 工具 | 全局 Skill 目录 | `{baseDir}` 占位符 |
 |---|---|---|
 | **Claude Code** | `~/.claude/skills/flyimg/` | 不替换，需用实际路径 |
 | **Codex CLI** | `~/.agents/skills/flyimg/` | 不替换，需用实际路径 |
 | **OpenClaw（龙虾）** | `~/.openclaw/skills/flyimg/` | ✅ 自动替换为实际路径 |
+| **Hermes** | `~/.hermes/skills/flyimg/` | 视配置而定 |
 
-> 不支持 Cursor / Windsurf / Cline（它们使用规则文件注入模式，不执行脚本）。
+> 其他遵循 agentskills.io 规范的 Agent 工具同样适用。不支持仅使用规则文件注入、不执行脚本的模式（如 Cursor / Windsurf / Cline 的部分模式）。
 
 ### 安装方式
 
@@ -542,7 +545,7 @@ flyimg/
 
 Agent 会自动：
 
-1. 识别当前正在运行的工具（Claude Code / Codex CLI / OpenClaw）
+1. 根据自身运行环境确定全局 skill 目录（如 Claude Code / Codex CLI / OpenClaw / Hermes 等，或其他兼容 agentskills.io 规范的工具）
 2. 从 GitHub 下载 `SKILL.md`、`setup.sh`、`upload.sh` 到该工具的全局 skill 目录（GitHub 不可达时自动回退到 Gitee 镜像）
 3. 设置脚本可执行权限
 4. 提示你重启工具

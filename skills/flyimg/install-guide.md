@@ -25,15 +25,20 @@
 
 ## 二、兼容的 Agent 工具
 
-本 Skill 遵循 **AgentSkills 规范**（`SKILL.md` + YAML frontmatter），支持以下工具的全局安装：
+本 Skill 遵循 **AgentSkills 规范**（`SKILL.md` + YAML frontmatter，对应 [agentskills.io](https://agentskills.io/specification) 开放标准）。**任何兼容该规范、支持 `SKILL.md` 并可执行 `scripts/` 下脚本的 Agent 工具**均可安装本 Skill——由 Agent 根据自身运行环境确定全局 skill 目录并完成安装，无需在本文档中逐一硬编码识别。
+
+以下为已知兼容工具及其全局 Skill 目录（供 Agent 确定 `INSTALL_ROOT` 时参考）：
 
 | 工具 | 全局 Skill 目录 | `{baseDir}` 占位符 |
 |---|---|---|
 | **Claude Code** | `~/.claude/skills/flyimg/` | 不替换，需用实际路径 |
 | **Codex CLI** | `~/.agents/skills/flyimg/` | 不替换，需用实际路径 |
 | **OpenClaw（龙虾）** | `~/.openclaw/skills/flyimg/` | ✅ 自动替换为实际路径 |
+| **Hermes** | `~/.hermes/skills/flyimg/` | 视配置而定 |
 
-> 不支持 Cursor / Windsurf / Cline（它们使用规则文件注入模式，不执行脚本）。
+> 上表仅为已知示例，并非穷举。其他遵循 agentskills.io 规范的 Agent 工具同样适用——Agent 应自行确认其全局 skill 目录。
+>
+> 不支持仅使用规则文件注入、不执行脚本的模式（如 Cursor / Windsurf / Cline 的部分模式）。
 
 ---
 
@@ -51,71 +56,37 @@
 
 ## 四、安装步骤
 
-### 步骤 1：识别当前正在运行的 Agent 工具
+### 步骤 1：确定安装目录
 
-Agent 读取本文档后，需先判断**自己当前运行在哪个工具中**。判定依据（按优先级从高到低）：
+Agent 读取本文档后，需根据**自身当前运行环境**确定本 Skill 的安装目录 `INSTALL_ROOT`。本指南**不提供固定的环境变量/进程名检测脚本**——因为兼容 agentskills.io 标准的 Agent 工具众多且持续增加，硬编码识别反而会遗漏新工具。改由 Agent（LLM）自行判断，这是最通用、最可靠的方式。
 
-| 判定方式 | 说明 |
-|---|---|
-| **环境变量** | 检查 `CLAUDE_CODE`、`CODEX_CLI`、`OPENCLAW`、`OPENCLAW_WORKSPACE` 等工具特有的环境变量 |
-| **父进程名** | `ps -o comm= -p $PPID` 输出含 `claude`/`codex`/`openclaw` |
-| **Agent 自我声明** | Agent（LLM）知道自己被哪个工具加载，可直接声明 |
+**确定方法**：
 
-#### 自动检测脚本（供 Agent 执行）
-
-```bash
-CURRENT_TOOL=""
-INSTALL_ROOT=""
-
-# 方式1：检查环境变量（各工具特有）
-if [ -n "${CLAUDE_CODE:-}" ] || [ -n "${CLAUDECODE:-}" ]; then
-  CURRENT_TOOL="claude"
-  INSTALL_ROOT="$HOME/.claude/skills/flyimg"
-elif [ -n "${CODEX_CLI:-}" ] || [ -n "${CODEX_HOME:-}" ]; then
-  CURRENT_TOOL="codex"
-  INSTALL_ROOT="$HOME/.agents/skills/flyimg"
-elif [ -n "${OPENCLAW:-}" ] || [ -n "${OPENCLAW_WORKSPACE:-}" ]; then
-  CURRENT_TOOL="openclaw"
-  INSTALL_ROOT="$HOME/.openclaw/skills/flyimg"
-# 方式2：检查父进程名
-else
-  PARENT_COMM=$(ps -o comm= -p $PPID 2>/dev/null | tr -d ' ')
-  case "$PARENT_COMM" in
-    *claude*)   CURRENT_TOOL="claude";   INSTALL_ROOT="$HOME/.claude/skills/flyimg" ;;
-    *codex*)    CURRENT_TOOL="codex";    INSTALL_ROOT="$HOME/.agents/skills/flyimg" ;;
-    *openclaw*|*claw*) CURRENT_TOOL="openclaw"; INSTALL_ROOT="$HOME/.openclaw/skills/flyimg" ;;
-  esac
-fi
-
-# 方式3：若脚本检测失败，Agent 应根据自身运行环境直接声明
-if [ -z "$CURRENT_TOOL" ]; then
-  echo "⚠ 自动检测未识别到当前工具。"
-  echo "  请 Agent（LLM）根据自身运行环境直接确定 CURRENT_TOOL 和 INSTALL_ROOT："
-  echo "  - 运行在 Claude Code 中 → CURRENT_TOOL=claude, INSTALL_ROOT=~/.claude/skills/flyimg"
-  echo "  - 运行在 Codex CLI 中   → CURRENT_TOOL=codex,  INSTALL_ROOT=~/.agents/skills/flyimg"
-  echo "  - 运行在 OpenClaw 中     → CURRENT_TOOL=openclaw, INSTALL_ROOT=~/.openclaw/skills/flyimg"
-  echo ""
-  echo "  确定后继续执行步骤 2。"
-  # Agent 在此暂停，自行判断后继续（不要让用户选）
-else
-  echo "✓ 当前工具: $CURRENT_TOOL"
-  echo "✓ 安装目录: $INSTALL_ROOT"
-fi
-```
+- Agent（LLM）**应当知道自己运行在哪个工具中**以及该工具的全局 skill 目录位置——直接据此确定 `INSTALL_ROOT`，无需询问用户。
+- 将 `INSTALL_ROOT` 设为该工具全局 skill 目录下的 `flyimg/` 子目录，参考「二、兼容的 Agent 工具」表格，例如：
+  - Claude Code → `~/.claude/skills/flyimg`
+  - Codex CLI → `~/.agents/skills/flyimg`
+  - OpenClaw → `~/.openclaw/skills/flyimg`
+  - Hermes → `~/.hermes/skills/flyimg`
+  - 其他兼容工具 → 该工具文档规定的全局 skill 目录下的 `flyimg/`
+- 仅当 Agent 确实无法判断（罕见情况）时，才询问用户当前使用的工具或其全局 skill 目录路径。
 
 **关键原则**：
-- Agent（LLM）**应当知道自己运行在哪个工具中**，这是最可靠的判定方式
 - 不要询问用户"你用的是哪个工具"——Agent 自己就能判断
 - 只装到**当前工具**的全局目录，**不要**装到其他工具目录
+- 确定后设好 `INSTALL_ROOT` 变量，继续执行步骤 2
 
 ### 步骤 2：从远程下载 Skill 文件到当前工具的全局目录（先 GitHub，失败回退 Gitee）
 
 > **下载源策略**：国内访问 GitHub raw 可能超时，本步骤先尝试 GitHub，失败后自动回退到 Gitee 镜像，确保国内外环境都能装上。
 
 ```bash
-# 使用步骤 1 确定的 INSTALL_ROOT
-# 若步骤 1 脚本未导出变量，Agent 需自行设置，例如：
-# INSTALL_ROOT="$HOME/.claude/skills/flyimg"  # 根据当前工具替换
+# 使用步骤 1 确定的 INSTALL_ROOT（即当前 Agent 工具全局 skill 目录下的 flyimg/ 子目录）
+# Agent 根据自身运行环境设置，例如：
+# INSTALL_ROOT="$HOME/.claude/skills/flyimg"      # Claude Code
+# INSTALL_ROOT="$HOME/.agents/skills/flyimg"      # Codex CLI
+# INSTALL_ROOT="$HOME/.openclaw/skills/flyimg"    # OpenClaw
+# INSTALL_ROOT="$HOME/.hermes/skills/flyimg"      # Hermes
 
 # 创建目录
 mkdir -p "$INSTALL_ROOT/scripts"
@@ -169,12 +140,17 @@ ls -la "$INSTALL_ROOT" "$INSTALL_ROOT/scripts"
 
 ### 步骤 3：告知用户重启 Agent 工具
 
-**Skill 创建后不会立即生效，必须重启 Agent 工具才能加载。** 明确告知用户：
+**Skill 创建后不会立即生效，必须重启 Agent 工具才能加载。** 明确告知用户重启其正在使用的 Agent 工具，并通过该工具的 skill 发现机制（斜杠命令 / 技能面板 / skill 列表等）确认是否出现 `flyimg`。
+
+常见工具的重启方式（参考）：
 
 - **Claude Code**：完全退出（cmd-Q / Ctrl-C 后重新打开），任意目录运行 `claude`，输入 `/` 查看是否出现 `flyimg`
 - **Codex CLI**：重启 Codex 会话，运行 `codex` 检查 skill 加载日志
 - **OpenClaw（龙虾）**：在「技能模块」面板查看是否出现 `flyimg`，或重启龙虾进程
+- **Hermes**：重启 Hermes 会话，运行 `hermes skills list` 或在技能列表中确认 `flyimg`
 
+> 其他兼容工具请参考其官方文档的 skill 加载/刷新方式。
+>
 > 全局安装后，用户在**任意项目目录**都能使用本 Skill，无需在每个项目里重复安装。
 
 ---
