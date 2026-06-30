@@ -6,5 +6,7 @@ dist/
 *.log
 
 # Flyimg Skill 本地配置（含用户专属 Worker 地址，勿提交）
-.traecli/skills/flyimg-upload/scripts/config.json
+skills/flyimg-upload/scripts/config.json
+.claude/skills/flyimg-upload/scripts/config.json
+.agents/skills/flyimg-upload/scripts/config.json
 
