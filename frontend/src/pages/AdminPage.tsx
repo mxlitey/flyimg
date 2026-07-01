@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Input, Loading, Modal, Select, Table, Title, type CardColor, type TableColumn } from 'animal-island-ui'
+import { Button, Card, Input, Loading, Select, Table, Title, type CardColor, type TableColumn } from 'animal-island-ui'
 import { cleanExpired, deleteFile, fetchAllImages, renewFile, type ImageItem, type RenewConfig, type StorageInfo } from '../lib/api'
 import { displayConfig } from '../lib/config'
 import { copyText, formatBytes, formatDate, formatDurationLabel, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
+import ModalShell from '../components/ModalShell'
 
 interface ConfirmState {
   title: string
@@ -387,7 +388,15 @@ export default function AdminPage() {
         </div>
       )}
 
-      <Modal open={!!renewTarget} title="续期资源（管理员）" onClose={() => setRenewTarget(null)} footer={null} width={400} typewriter={false}>
+      <ModalShell
+        open={!!renewTarget}
+        title="续期资源（管理员）"
+        onClose={() => setRenewTarget(null)}
+        onConfirm={confirmRenew}
+        confirmLabel="确认续期"
+        loading={renewing}
+        width={400}
+      >
         {renewTarget && (
           <div>
             <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', marginBottom: '0.5rem', color: '#5a4632' }}>{renewTarget.filename}</p>
@@ -400,41 +409,26 @@ export default function AdminPage() {
               onChange={setRenewDuration}
               options={renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) }))}
             />
-            <div className="flex gap-2" style={{ marginTop: '1rem' }}>
-              <Button type="primary" block onClick={() => setRenewTarget(null)}>
-                取消
-              </Button>
-              <Button type="primary" block loading={renewing} onClick={confirmRenew}>
-                确认续期
-              </Button>
-            </div>
           </div>
         )}
-      </Modal>
+      </ModalShell>
 
-      <Modal open={!!confirm} title={confirm?.title || ''} onClose={() => setConfirm(null)} footer={null} width={380} typewriter={false}>
+      <ModalShell
+        open={!!confirm}
+        title={confirm?.title || ''}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          const fn = confirm?.onOk
+          setConfirm(null)
+          fn?.()
+        }}
+        confirmLabel="删除"
+        danger
+      >
         {confirm && (
-          <div>
-            <p style={{ fontSize: '0.875rem', color: '#5a4632', marginBottom: '1rem' }}>{confirm.message}</p>
-            <div className="flex gap-2">
-              <Button type="primary" block onClick={() => setConfirm(null)}>
-                取消
-              </Button>
-              <Button
-                danger
-                block
-                onClick={() => {
-                  const fn = confirm.onOk
-                  setConfirm(null)
-                  fn()
-                }}
-              >
-                删除
-              </Button>
-            </div>
-          </div>
+          <p style={{ fontSize: '0.875rem', color: '#5a4632', marginBottom: '1rem' }}>{confirm.message}</p>
         )}
-      </Modal>
+      </ModalShell>
     </div>
   )
 }

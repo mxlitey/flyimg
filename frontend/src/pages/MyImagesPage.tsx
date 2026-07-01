@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Button, Card, Loading, Modal, Select, Tag, Title } from 'animal-island-ui'
+import { Button, Card, Loading, Select, Tag, Title } from 'animal-island-ui'
 import { fetchMyImages, renewFile, type ImageItem, type RenewConfig } from '../lib/api'
 import { displayConfig } from '../lib/config'
 import { copyText, formatBytes, formatDate, formatDurationLabel, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
+import ModalShell from '../components/ModalShell'
 
 export default function MyImagesPage() {
   const { userTag = '' } = useParams()
@@ -139,7 +140,14 @@ export default function MyImagesPage() {
         </div>
       )}
 
-      <Modal open={!!renewTarget} title="续期资源" onClose={() => setRenewTarget(null)} footer={null} width={380} typewriter={false}>
+      <ModalShell
+        open={!!renewTarget}
+        title="续期资源"
+        onClose={() => setRenewTarget(null)}
+        onConfirm={confirmRenew}
+        confirmLabel="确认续期"
+        loading={renewing}
+      >
         {renewTarget && (
           <div>
             <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: '#5a4632' }}>
@@ -153,17 +161,9 @@ export default function MyImagesPage() {
               onChange={setRenewDuration}
               options={renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) }))}
             />
-            <div className="flex gap-2" style={{ marginTop: '1rem' }}>
-              <Button type="primary" block onClick={() => setRenewTarget(null)}>
-                取消
-              </Button>
-              <Button type="primary" block loading={renewing} onClick={confirmRenew}>
-                确认续期
-              </Button>
-            </div>
           </div>
         )}
-      </Modal>
+      </ModalShell>
     </div>
   )
 }
