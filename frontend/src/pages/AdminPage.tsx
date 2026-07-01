@@ -353,6 +353,12 @@ export default function AdminPage() {
             onChange={setUserFilter}
             options={[{ key: '', label: '全部用户' }, ...users.map((u) => ({ key: u, label: u }))]}
           />
+          <Button size="small" type="primary" onClick={load}>
+            刷新
+          </Button>
+          <Button size="small" onClick={doClean}>
+            清理过期
+          </Button>
           <Button size="small" onClick={toggleSelectAll}>
             {allSelected ? '取消全选' : '全选'}
           </Button>
@@ -360,13 +366,7 @@ export default function AdminPage() {
             批量删除 ({selected.size})
           </Button>
           <Button size="small" danger onClick={deleteByUser}>
-            按用户删除
-          </Button>
-          <Button size="small" onClick={doClean}>
-            清理过期
-          </Button>
-          <Button size="small" type="primary" onClick={load}>
-            刷新
+            删除用户
           </Button>
         </div>
       </Card>
