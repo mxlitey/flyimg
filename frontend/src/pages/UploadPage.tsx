@@ -121,9 +121,53 @@ export default function UploadPage() {
       {/* 进度 */}
       {phase === 'uploading' && (
         <Card color="app-teal" className="text-center" style={{ padding: '2.5rem' }}>
-          <Button type="primary" size="large" loading disabled>
-            正在上传...
-          </Button>
+          {/* 模拟 primary 按钮外观的进度条（非真实按钮，不可点击）：
+              米色底 #f8f8f0 / 棕字 #794f27 / 胶囊圆角 / 5px 立体阴影，
+              内部填充层按上传百分比从左向右填满 */}
+          <div
+            style={{
+              position: 'relative',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: 45,
+              width: '100%',
+              maxWidth: 320,
+              padding: '0 20px',
+              fontFamily: 'Nunito, "Noto Sans SC", sans-serif',
+              fontWeight: 600,
+              fontSize: '1rem',
+              letterSpacing: '.02em',
+              color: '#794f27',
+              background: '#f8f8f0',
+              border: '1px solid #f8f8f0',
+              borderRadius: 50,
+              boxShadow: '0 5px #bdaea0',
+              overflow: 'hidden',
+              userSelect: 'none',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: `${progress}%`,
+                background: 'linear-gradient(90deg, #0ec4b6, #19c8b9)',
+                transition: 'width 0.3s ease',
+                zIndex: 1,
+              }}
+            />
+            <span style={{ position: 'relative', zIndex: 2, color: progress > 55 ? '#ffffff' : '#794f27', transition: 'color 0.3s' }}>
+              上传中 {progress}%
+            </span>
+          </div>
+          <div style={{ marginTop: '1.25rem' }}>
+            <Button type="primary" onClick={() => { setPhase('idle'); setProgress(0) }}>
+              取消上传
+            </Button>
+          </div>
         </Card>
       )}
 
