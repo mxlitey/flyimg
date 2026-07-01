@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Button, Card, Input, Loading, Select, Table, Title, type CardColor, type TableColumn } from 'animal-island-ui'
 import { cleanExpired, deleteFile, fetchAllImages, renewFile, type ImageItem, type RenewConfig, type StorageInfo } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, formatBytes, formatDate, formatDurationLabel, formatExpireTime } from '../lib/utils'
+import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
+import RenewModal from '../components/RenewModal'
 
 interface ConfirmState {
   title: string
@@ -200,7 +201,6 @@ export default function AdminPage() {
 
   const openRenew = (img: ImageItem) => {
     setRenewTarget(img)
-    setRenewDuration(String(renewConfig.durations[0] ?? 60))
   }
 
   const confirmRenew = async () => {
@@ -388,30 +388,17 @@ export default function AdminPage() {
         </div>
       )}
 
-      <ModalShell
+      <RenewModal
         open={!!renewTarget}
-        title="续期资源（管理员）"
-        onClose={() => setRenewTarget(null)}
+        target={renewTarget}
+        renewConfig={renewConfig}
+        duration={renewDuration}
+        onDurationChange={setRenewDuration}
         onConfirm={confirmRenew}
-        confirmLabel="确认续期"
+        onClose={() => setRenewTarget(null)}
         loading={renewing}
-        width={400}
-      >
-        {renewTarget && (
-          <div>
-            <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', marginBottom: '0.5rem', color: '#5a4632' }}>{renewTarget.filename}</p>
-            <p style={{ fontSize: '0.875rem', marginBottom: '0.75rem', color: '#5a4632' }}>
-              已续期次数：{renewTarget.renew_count || 0}（管理员无限制）
-            </p>
-            <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>选择续期时长</label>
-            <Select
-              value={renewDuration}
-              onChange={setRenewDuration}
-              options={renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) }))}
-            />
-          </div>
-        )}
-      </ModalShell>
+        isAdmin
+      />
 
       <ModalShell
         open={!!confirm}
