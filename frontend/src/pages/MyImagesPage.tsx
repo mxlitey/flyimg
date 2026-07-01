@@ -127,7 +127,7 @@ export default function MyImagesPage() {
                       复制
                     </Button>
                     {canRenew && (
-                      <Button size="small" type="default" block onClick={() => openRenew(img)}>
+                      <Button size="small" type="primary" block onClick={() => openRenew(img)}>
                         续期
                       </Button>
                     )}
@@ -154,7 +154,7 @@ export default function MyImagesPage() {
               options={renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) }))}
             />
             <div className="flex gap-2" style={{ marginTop: '1rem' }}>
-              <Button block onClick={() => setRenewTarget(null)}>
+              <Button type="primary" block onClick={() => setRenewTarget(null)}>
                 取消
               </Button>
               <Button type="primary" block loading={renewing} onClick={confirmRenew}>

@@ -32,6 +32,8 @@ export default function UploadPage() {
       try {
         const data = await uploadFile(file, userTag.trim(), (p) => setProgress(p))
         setProgress(100)
+        // 让用户至少看到 100% 满进度 0.5 秒
+        await new Promise((r) => setTimeout(r, 500))
         setResult({ url: data.url, markdown: data.markdown, html: data.html, expireAt: data.expireAt })
         setPhase('done')
         toast.show('上传成功！')
@@ -118,19 +120,19 @@ export default function UploadPage() {
         </Card>
       )}
 
-      {/* 进度：借用 Button 的视觉样式，但作为非交互元素，内部填充随进度增长 */}
+      {/* 进度：loading 提供动效条纹 + 不可交互，::before 填充随进度增长，文字显示整数百分比 */}
       {phase === 'uploading' && (
         <Card color="app-teal" className="text-center" style={{ padding: '2.5rem' }}>
-          <Button type="primary" size="large" block className="ai-upload-progress-btn">
-            <span style={{ position: 'relative', zIndex: 1 }}>{progress}%</span>
+          <Button size="large" block loading className="ai-upload-progress-btn">
+            <span style={{ position: 'relative', zIndex: 1 }}>{Math.round(progress)}%</span>
           </Button>
           <style>{`
-            .ai-upload-progress-btn { position: relative; pointer-events: none; overflow: hidden; }
+            .ai-upload-progress-btn { position: relative; overflow: hidden; }
             .ai-upload-progress-btn::before {
               content: '';
               position: absolute;
               inset: 0;
-              width: ${progress}%;
+              width: ${Math.round(progress)}%;
               background: rgba(255,255,255,0.35);
               transition: width 0.3s ease;
               z-index: 0;

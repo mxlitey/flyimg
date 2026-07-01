@@ -401,7 +401,7 @@ export default function AdminPage() {
               options={renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) }))}
             />
             <div className="flex gap-2" style={{ marginTop: '1rem' }}>
-              <Button block onClick={() => setRenewTarget(null)}>
+              <Button type="primary" block onClick={() => setRenewTarget(null)}>
                 取消
               </Button>
               <Button type="primary" block loading={renewing} onClick={confirmRenew}>
