@@ -118,12 +118,24 @@ export default function UploadPage() {
         </Card>
       )}
 
-      {/* 进度 */}
+      {/* 进度：借用 Button 的视觉样式，但作为非交互元素，内部填充随进度增长 */}
       {phase === 'uploading' && (
         <Card color="app-teal" className="text-center" style={{ padding: '2.5rem' }}>
-          <Button type="primary" size="large" loading disabled>
-            正在上传...
+          <Button type="primary" size="large" block className="ai-upload-progress-btn">
+            <span style={{ position: 'relative', zIndex: 1 }}>{progress}%</span>
           </Button>
+          <style>{`
+            .ai-upload-progress-btn { position: relative; pointer-events: none; overflow: hidden; }
+            .ai-upload-progress-btn::before {
+              content: '';
+              position: absolute;
+              inset: 0;
+              width: ${progress}%;
+              background: rgba(255,255,255,0.35);
+              transition: width 0.3s ease;
+              z-index: 0;
+            }
+          `}</style>
         </Card>
       )}
 

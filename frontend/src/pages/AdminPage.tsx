@@ -417,11 +417,10 @@ export default function AdminPage() {
           <div>
             <p style={{ fontSize: '0.875rem', color: '#5a4632', marginBottom: '1rem' }}>{confirm.message}</p>
             <div className="flex gap-2">
-              <Button block onClick={() => setConfirm(null)}>
+              <Button type="primary" block onClick={() => setConfirm(null)}>
                 取消
               </Button>
               <Button
-                type="primary"
                 danger
                 block
                 onClick={() => {
