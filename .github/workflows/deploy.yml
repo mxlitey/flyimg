@@ -113,18 +113,6 @@ jobs:
           };
           EOF
 
-      - name: Copy skill files to frontend
-        run: |
-          # 把 skill 文件复制到 frontend/public，使其经 Vite 构建后可通过 Worker 域名访问
-          # 作为 GitHub raw 链接的国内友好备用下载源
-          mkdir -p frontend/public/skills/flyimg/scripts
-          cp skills/flyimg/SKILL.md           frontend/public/skills/flyimg/SKILL.md
-          cp skills/flyimg/install-guide.md   frontend/public/install-guide.md
-          cp skills/flyimg/install-guide.md   frontend/public/skills/flyimg/install-guide.md
-          cp skills/flyimg/scripts/setup.sh   frontend/public/skills/flyimg/scripts/setup.sh
-          cp skills/flyimg/scripts/upload.sh  frontend/public/skills/flyimg/scripts/upload.sh
-          chmod +x frontend/public/skills/flyimg/scripts/*.sh
-
       - name: Build Frontend
         run: |
           cd frontend
