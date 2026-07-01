@@ -15,11 +15,42 @@ interface ConfirmState {
   danger?: boolean
 }
 
+// 管理密钥本地缓存键与有效期（30 天）
+const ADMIN_TOKEN_KEY = 'adminToken'
+const ADMIN_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000
+
+function readStoredToken(): string {
+  try {
+    const raw = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as { value: string; expireAt: number }
+    if (Date.now() > parsed.expireAt) {
+      localStorage.removeItem(ADMIN_TOKEN_KEY)
+      return ''
+    }
+    return parsed.value
+  } catch {
+    return ''
+  }
+}
+
+function writeStoredToken(value: string) {
+  localStorage.setItem(
+    ADMIN_TOKEN_KEY,
+    JSON.stringify({ value, expireAt: Date.now() + ADMIN_TOKEN_TTL })
+  )
+}
+
+function clearStoredToken() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY)
+}
+
 export default function AdminPage() {
   const toast = useToast()
-  const [token, setToken] = useState(() => sessionStorage.getItem('adminToken') || '')
+  const cachedToken = readStoredToken()
+  const [token, setToken] = useState(cachedToken)
   const [tokenInput, setTokenInput] = useState('')
-  const [logged, setLogged] = useState(!!sessionStorage.getItem('adminToken'))
+  const [logged, setLogged] = useState(!!cachedToken)
 
   const [images, setImages] = useState<ImageItem[]>([])
   const [renewConfig, setRenewConfig] = useState<RenewConfig>({
@@ -44,7 +75,7 @@ export default function AdminPage() {
       return
     }
     setToken(t)
-    sessionStorage.setItem('adminToken', t)
+    writeStoredToken(t)
     setLogged(true)
     toast.show('登录成功')
   }
@@ -55,7 +86,7 @@ export default function AdminPage() {
     setTokenInput('')
     setImages([])
     setSelected(new Set())
-    sessionStorage.removeItem('adminToken')
+    clearStoredToken()
     toast.show('已退出登录')
   }
 
@@ -316,21 +347,24 @@ export default function AdminPage() {
     return (
       <div className="max-w-md mx-auto" style={{ marginTop: '3rem' }}>
         <Card color="app-orange" style={{ padding: '2rem' }}>
-          <Title size="middle" color="app-orange">
+          <Title size="middle" color="app-yellow">
             管理后台
           </Title>
-          <p style={{ color: '#8a7a66', fontSize: '0.85rem', marginBottom: '1rem' }}>请输入管理密钥（CRON_SECRET）</p>
+          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+            请输入管理密钥（CRON_SECRET）
+          </p>
           <Input
             placeholder="管理密钥"
             value={tokenInput}
             onChange={(e) => setTokenInput(e.target.value)}
             type="password"
-            style={{ width: '100%', marginBottom: '1rem' }}
+            size="large"
+            style={{ width: '100%', display: 'flex', alignItems: 'center' }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') login()
             }}
           />
-          <Button type="primary" block onClick={login}>
+          <Button type="primary" block style={{ marginTop: '1.25rem' }} onClick={login}>
             登录
           </Button>
         </Card>
