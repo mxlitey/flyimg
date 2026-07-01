@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { Button, Card, Icon, Input, Loading, Title } from 'animal-island-ui'
+import { Button, Card, Icon, Input, Title } from 'animal-island-ui'
 import { uploadFile } from '../lib/api'
 import { displayConfig } from '../lib/config'
 import { copyText, hoursLeft } from '../lib/utils'
@@ -121,8 +121,9 @@ export default function UploadPage() {
       {/* 进度 */}
       {phase === 'uploading' && (
         <Card color="app-teal" className="text-center" style={{ padding: '2.5rem' }}>
-          <div style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#ffffff', fontWeight: 700 }}>📤 正在上传...</div>
-          <Loading active />
+          <Button type="primary" size="large" loading disabled>
+            正在上传...
+          </Button>
         </Card>
       )}
 
