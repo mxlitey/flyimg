@@ -46,7 +46,7 @@ export default function ModalShell({
         </Button>
         {onConfirm && (
           <Button
-            type={danger ? 'default' : 'primary'}
+            type="primary"
             danger={danger || undefined}
             block
             loading={loading}
