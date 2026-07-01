@@ -19,3 +19,17 @@ body {
   padding: 2rem 1rem;
   width: 100%;
 }
+
+/* 后台表格窄屏横向滚动：
+   外层容器限定为可视宽度并负责滚动（页面不随之滚动）；
+   内部 Table 的圆角边框按内容宽度伸展，圆角随内容移动，
+   只有滚到最右端时才露出右侧圆角。 */
+.table-scroll-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll-wrap > div {
+  width: max-content;
+  min-width: 100%;
+}

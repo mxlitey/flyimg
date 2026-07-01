@@ -376,13 +376,15 @@ export default function AdminPage() {
           <Loading active />
         </div>
       ) : (
-        <Table
-          columns={columns}
-          dataSource={filtered as unknown as Record<string, unknown>[]}
-          rowKey="filename"
-          striped
-          emptyText="暂无文件"
-        />
+        <div className="table-scroll-wrap">
+          <Table
+            columns={columns}
+            dataSource={filtered as unknown as Record<string, unknown>[]}
+            rowKey="filename"
+            striped
+            emptyText="暂无文件"
+          />
+        </div>
       )}
 
       <Modal open={!!renewTarget} title="续期资源（管理员）" onClose={() => setRenewTarget(null)} footer={null} width={400} typewriter={false}>
