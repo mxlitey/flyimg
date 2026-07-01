@@ -11,6 +11,8 @@ interface ConfirmState {
   title: string
   message: string
   onOk: () => void
+  confirmLabel?: string
+  danger?: boolean
 }
 
 export default function AdminPage() {
@@ -114,6 +116,8 @@ export default function AdminPage() {
     setConfirm({
       title: '删除文件',
       message: `确定要删除「${filename}」吗？此操作不可恢复。`,
+      confirmLabel: '删除',
+      danger: true,
       onOk: async () => {
         try {
           const data = await deleteFile(filename, token)
@@ -134,6 +138,8 @@ export default function AdminPage() {
     setConfirm({
       title: '批量删除',
       message: `确定要删除选中的 ${count} 个文件吗？此操作不可恢复。`,
+      confirmLabel: '删除',
+      danger: true,
       onOk: async () => {
         let ok = 0
         let fail = 0
@@ -162,8 +168,10 @@ export default function AdminPage() {
       return
     }
     setConfirm({
-      title: '按用户删除',
-      message: `确定要删除用户「${userFilter}」的所有 ${userImages.length} 个文件吗？此操作不可恢复。`,
+      title: '删除用户',
+      message: `确定要删除「${userFilter}」吗？此操作不可恢复。`,
+      confirmLabel: '删除',
+      danger: true,
       onOk: async () => {
         let ok = 0
         let fail = 0
@@ -185,6 +193,8 @@ export default function AdminPage() {
     setConfirm({
       title: '清理过期文件',
       message: '确定要清理所有过期文件吗？此操作不可恢复。',
+      confirmLabel: '确认',
+      danger: true,
       onOk: async () => {
         try {
           const data = await cleanExpired(token)
@@ -409,8 +419,8 @@ export default function AdminPage() {
           setConfirm(null)
           fn?.()
         }}
-        confirmLabel="删除"
-        danger
+        confirmLabel={confirm?.confirmLabel || '确认'}
+        danger={confirm?.danger}
       >
         {confirm && (
           <p style={{ fontSize: '0.875rem', color: '#5a4632', marginBottom: '1rem' }}>{confirm.message}</p>
