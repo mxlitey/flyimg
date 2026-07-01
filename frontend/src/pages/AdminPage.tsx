@@ -353,7 +353,7 @@ export default function AdminPage() {
             onChange={setUserFilter}
             options={[{ key: '', label: '全部用户' }, ...users.map((u) => ({ key: u, label: u }))]}
           />
-          <Button size="small" type="primary" onClick={load}>
+          <Button size="small" onClick={load}>
             刷新
           </Button>
           <Button size="small" onClick={doClean}>
@@ -376,15 +376,13 @@ export default function AdminPage() {
           <Loading active />
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <Table
-            columns={columns}
-            dataSource={filtered as unknown as Record<string, unknown>[]}
-            rowKey="filename"
-            striped
-            emptyText="暂无文件"
-          />
-        </div>
+        <Table
+          columns={columns}
+          dataSource={filtered as unknown as Record<string, unknown>[]}
+          rowKey="filename"
+          striped
+          emptyText="暂无文件"
+        />
       )}
 
       <Modal open={!!renewTarget} title="续期资源（管理员）" onClose={() => setRenewTarget(null)} footer={null} width={400} typewriter={false}>

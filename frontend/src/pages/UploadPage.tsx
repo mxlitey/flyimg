@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { Button, Card, Input, Loading, Title } from 'animal-island-ui'
+import { Button, Card, Icon, Input, Loading, Title } from 'animal-island-ui'
 import { uploadFile } from '../lib/api'
 import { displayConfig } from '../lib/config'
 import { copyText, hoursLeft } from '../lib/utils'
@@ -130,7 +130,7 @@ export default function UploadPage() {
       {phase === 'done' && result && (
         <Card color="app-green" style={{ padding: '2.5rem' }}>
           <div className="flex items-center justify-center mb-4">
-            <span style={{ fontSize: '1.5rem', marginRight: '0.5rem' }}>✅</span>
+            <Icon name="icon-miles" size={28} style={{ marginRight: '0.5rem' }} />
             <span style={{ fontWeight: 600, fontSize: '1.125rem' }}>上传成功！</span>
             <span className="ml-auto" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', padding: '0.25rem 1rem', borderRadius: '9999px', fontSize: '0.8rem' }}>
               {hoursLeft(result.expireAt)}小时后过期
@@ -157,8 +157,8 @@ export default function UploadPage() {
             ))}
           </div>
 
-          <Button type="default" block style={{ marginTop: '1.5rem' }} onClick={reset}>
-            📤 继续上传
+          <Button type="default" block style={{ marginTop: '1.5rem' }} icon={<Icon name="icon-camera" size={18} />} onClick={reset}>
+            继续上传
           </Button>
         </Card>
       )}
