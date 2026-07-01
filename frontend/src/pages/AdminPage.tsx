@@ -429,7 +429,7 @@ export default function AdminPage() {
                   fn()
                 }}
               >
-                确认
+                删除
               </Button>
             </div>
           </div>
