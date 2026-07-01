@@ -76,6 +76,12 @@ jobs:
 
           echo "Updated wrangler.toml"
 
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+          echo "Frontend dependencies installed"
+
       - name: Generate Frontend Config
         run: |
           EXPIRE_HOURS="${{ vars.EXPIRE_HOURS || '12' }}"
@@ -95,9 +101,9 @@ jobs:
           RENEW_MAX_COUNT=${RENEW_PARTS[0]}
           RENEW_DURATIONS_JSON=$(echo "${RENEW_PARTS[@]:1}" | tr ' ' '\n' | jq -s '.')
 
-          cat > frontend/config.js << EOF
-          const API_BASE = '';
-          const DISPLAY_CONFIG = {
+          cat > frontend/public/config.js << EOF
+          window.API_BASE = '';
+          window.DISPLAY_CONFIG = {
             expireHours: ${EXPIRE_HOURS},
             maxFileSizeMB: ${MAX_FILE_SIZE},
             maxStorageSizeMB: ${MAX_STORAGE_SIZE},
@@ -109,15 +115,21 @@ jobs:
 
       - name: Copy skill files to frontend
         run: |
-          # 把 skill 文件复制到 frontend，使其可通过 Worker 域名访问
+          # 把 skill 文件复制到 frontend/public，使其经 Vite 构建后可通过 Worker 域名访问
           # 作为 GitHub raw 链接的国内友好备用下载源
-          mkdir -p frontend/skills/flyimg/scripts
-          cp skills/flyimg/SKILL.md           frontend/skills/flyimg/SKILL.md
-          cp skills/flyimg/install-guide.md   frontend/install-guide.md
-          cp skills/flyimg/install-guide.md   frontend/skills/flyimg/install-guide.md
-          cp skills/flyimg/scripts/setup.sh   frontend/skills/flyimg/scripts/setup.sh
-          cp skills/flyimg/scripts/upload.sh  frontend/skills/flyimg/scripts/upload.sh
-          chmod +x frontend/skills/flyimg/scripts/*.sh
+          mkdir -p frontend/public/skills/flyimg/scripts
+          cp skills/flyimg/SKILL.md           frontend/public/skills/flyimg/SKILL.md
+          cp skills/flyimg/install-guide.md   frontend/public/install-guide.md
+          cp skills/flyimg/install-guide.md   frontend/public/skills/flyimg/install-guide.md
+          cp skills/flyimg/scripts/setup.sh   frontend/public/skills/flyimg/scripts/setup.sh
+          cp skills/flyimg/scripts/upload.sh  frontend/public/skills/flyimg/scripts/upload.sh
+          chmod +x frontend/public/skills/flyimg/scripts/*.sh
+
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm run build
+          echo "Frontend built to frontend/dist"
 
       - name: Setup D1 Database
         id: setup-d1
