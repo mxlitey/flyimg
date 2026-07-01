@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { Button, Card, Input, Title } from 'animal-island-ui'
+import { Button, Card, Input, Loading, Title } from 'animal-island-ui'
 import { uploadFile } from '../lib/api'
 import { displayConfig } from '../lib/config'
 import { copyText, hoursLeft } from '../lib/utils'
@@ -86,14 +86,14 @@ export default function UploadPage() {
       </div>
 
       {/* 用户名 */}
-      <div className="flex items-center justify-center gap-2 mb-6">
-        <span style={{ fontSize: '0.875rem', color: '#8a7a66' }}>用户名：</span>
+      <div className="flex items-center justify-center gap-2 mb-6" style={{ flexWrap: 'nowrap' }}>
+        <span style={{ fontSize: '0.875rem', color: '#8a7a66', whiteSpace: 'nowrap', flexShrink: 0 }}>用户名：</span>
         <Input
           placeholder="输入用户名（用于查看已传图片）"
           value={userTag}
           onChange={(e) => setUserTag(e.target.value)}
           allowClear
-          style={{ width: 280 }}
+          style={{ width: 280, minWidth: 0 }}
         />
       </div>
 
@@ -102,16 +102,16 @@ export default function UploadPage() {
         <Card
           color="app-blue"
           className="text-center cursor-pointer"
-          style={{ padding: '2.5rem', border: dragOver ? '2px dashed #3b82f6' : '2px dashed #c4b69c', transition: 'border-color 0.2s' }}
+          style={{ padding: '2.5rem', border: dragOver ? '2px dashed #ffffff' : '2px dashed rgba(255,255,255,0.5)', transition: 'border-color 0.2s' }}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
         >
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>☁️</div>
-          <p style={{ fontWeight: 600, fontSize: '1.25rem', color: '#5a4632', marginBottom: '0.5rem' }}>拖拽文件到这里上传</p>
-          <p style={{ color: '#8a7a66', fontSize: '0.875rem' }}>或者点击选择文件，也可以按 Ctrl+V 粘贴剪贴板中的内容</p>
-          <p style={{ color: '#a89880', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+          <p style={{ fontWeight: 700, fontSize: '1.25rem', color: '#ffffff', marginBottom: '0.5rem' }}>拖拽文件到这里上传</p>
+          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.875rem' }}>或者点击选择文件，也可以按 Ctrl+V 粘贴剪贴板中的内容</p>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', marginTop: '0.5rem' }}>
             支持 {displayConfig.allowedTypesDisplay} 格式，最大 {displayConfig.maxFileSizeMB}MB
           </p>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
@@ -121,10 +121,8 @@ export default function UploadPage() {
       {/* 进度 */}
       {phase === 'uploading' && (
         <Card color="app-teal" className="text-center" style={{ padding: '2.5rem' }}>
-          <div style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>📤 正在上传...</div>
-          <div style={{ width: '100%', background: '#e8dfd4', borderRadius: '0.5rem', height: '0.75rem', overflow: 'hidden' }}>
-            <div style={{ width: `${progress}%`, background: '#3b82f6', height: '100%', borderRadius: '0.5rem', transition: 'width 0.3s' }} />
-          </div>
+          <div style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#ffffff', fontWeight: 700 }}>📤 正在上传...</div>
+          <Loading active />
         </Card>
       )}
 

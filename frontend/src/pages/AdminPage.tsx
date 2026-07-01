@@ -273,8 +273,8 @@ export default function AdminPage() {
       render: (_v, record) => {
         const r = record as unknown as ImageItem
         return (
-          <span style={{ fontSize: '0.75rem', color: r.expired ? '#ef4444' : '#10b981' }}>
-            {formatExpireTime(r.expire_at)} {r.renew_count > 0 && <span style={{ color: '#8a7a66' }}>(已续{r.renew_count}次)</span>}
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: r.expired ? '#b91c1c' : '#0f766e' }}>
+            {formatExpireTime(r.expire_at)} {r.renew_count > 0 && <span style={{ color: '#3d2e1e' }}>(已续{r.renew_count}次)</span>}
           </span>
         )
       },
@@ -376,16 +376,18 @@ export default function AdminPage() {
           <Loading active />
         </div>
       ) : (
-        <Table
-          columns={columns}
-          dataSource={filtered as unknown as Record<string, unknown>[]}
-          rowKey="filename"
-          striped
-          emptyText="暂无文件"
-        />
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <Table
+            columns={columns}
+            dataSource={filtered as unknown as Record<string, unknown>[]}
+            rowKey="filename"
+            striped
+            emptyText="暂无文件"
+          />
+        </div>
       )}
 
-      <Modal open={!!renewTarget} title="续期资源（管理员）" onClose={() => setRenewTarget(null)} footer={null} width={400}>
+      <Modal open={!!renewTarget} title="续期资源（管理员）" onClose={() => setRenewTarget(null)} footer={null} width={400} typewriter={false}>
         {renewTarget && (
           <div>
             <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', marginBottom: '0.5rem', color: '#5a4632' }}>{renewTarget.filename}</p>
@@ -410,7 +412,7 @@ export default function AdminPage() {
         )}
       </Modal>
 
-      <Modal open={!!confirm} title={confirm?.title || ''} onClose={() => setConfirm(null)} footer={null} width={380}>
+      <Modal open={!!confirm} title={confirm?.title || ''} onClose={() => setConfirm(null)} footer={null} width={380} typewriter={false}>
         {confirm && (
           <div>
             <p style={{ fontSize: '0.875rem', color: '#5a4632', marginBottom: '1rem' }}>{confirm.message}</p>
@@ -441,8 +443,8 @@ export default function AdminPage() {
 function StatCard({ label, value, color }: { label: string; value: string; color: CardColor }) {
   return (
     <Card color={color} style={{ padding: '0.75rem', textAlign: 'center' }}>
-      <div style={{ fontSize: '0.7rem', color: '#8a7a66', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#5a4632' }}>{value}</div>
+      <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.85)', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff' }}>{value}</div>
     </Card>
   )
 }

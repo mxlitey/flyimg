@@ -42,7 +42,7 @@ export default function Layout() {
         <div className="max-w-4xl mx-auto px-4 flex justify-between items-center" style={{ height: '4rem' }}>
           <Link to="/" className="flex items-center gap-2 no-underline">
             <img src="/favicon.png" alt="Logo" style={{ width: 36, height: 36 }} />
-            <span style={{ fontWeight: 700, fontSize: '1.25rem', color: '#5a4632' }}>Flyimg</span>
+            <span style={{ fontWeight: 700, fontSize: '1.25rem', color: '#5a4632', fontFamily: 'Nunito, "Noto Sans SC", sans-serif' }}>Flyimg</span>
           </Link>
           <div className="flex items-center gap-1 flex-wrap">
             <Button type={isActive('/') ? 'primary' : 'text'} size="small" icon={<Icon name="icon-camera" size={16} />} onClick={() => navigate('/')}>

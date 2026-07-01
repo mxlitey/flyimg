@@ -139,7 +139,7 @@ export default function MyImagesPage() {
         </div>
       )}
 
-      <Modal open={!!renewTarget} title="续期资源" onClose={() => setRenewTarget(null)} footer={null} width={380}>
+      <Modal open={!!renewTarget} title="续期资源" onClose={() => setRenewTarget(null)} footer={null} width={380} typewriter={false}>
         {renewTarget && (
           <div>
             <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: '#5a4632' }}>
