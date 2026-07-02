@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { Select } from 'animal-island-ui'
 import { formatDurationLabel } from '../lib/utils'
 import type { ImageItem, RenewConfig } from '../lib/api'
 import ModalShell from './ModalShell'
@@ -27,6 +26,7 @@ interface RenewModalProps {
  * - 都显示文件名
  * - 续期次数统一为"已续 N / 上限"格式；管理员上限显示 ∞
  * - 复用 ModalShell 骨架
+ * - 使用原生 select 以兼容移动端（animal-island-ui Select 下拉在 Modal overflow:hidden 内被裁剪）
  */
 export default function RenewModal({
   open,
@@ -79,11 +79,30 @@ export default function RenewModal({
           <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', color: '#5a4632' }}>
             选择续期时长
           </label>
-          <Select
+          <select
             value={duration}
-            onChange={onDurationChange}
-            options={renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) }))}
-          />
+            onChange={(e) => onDurationChange(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 13px',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#725d42',
+              background: '#fff',
+              border: '2px solid #e8dcc8',
+              borderRadius: '12px',
+              outline: 'none',
+              cursor: 'pointer',
+              appearance: 'auto',
+              WebkitAppearance: 'auto',
+            }}
+          >
+            {renewConfig.durations.map((d) => (
+              <option key={d} value={String(d)}>
+                {formatDurationLabel(d)}
+              </option>
+            ))}
+          </select>
         </div>
       )}
     </ModalShell>
