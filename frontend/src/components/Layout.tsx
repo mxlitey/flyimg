@@ -67,9 +67,13 @@ export default function Layout() {
         <Outlet context={ctx} />
       </main>
 
-      <footer className="text-center text-sm py-4" style={{ color: '#8a7a66' }}>
+      <footer className="text-center text-sm py-4 w-full" style={{ color: '#8a7a66' }}>
         <p style={{ margin: '0.25rem 0' }}>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
-        <p style={{ margin: '0.25rem 0' }}>文件 {displayConfig.expireHours} 小时后自动永久删除</p>
+        <p style={{ margin: '0.25rem 0' }}>
+          <a href="https://github.com/mxlitey/flyimg" target="_blank" rel="noopener" style={{ color: '#8a7a66', textDecoration: 'none' }}>GitHub</a>
+          {' · Made with '}
+          <a href="https://github.com/guokaigdg/animal-island-ui" target="_blank" rel="noopener" style={{ color: '#8a7a66', textDecoration: 'none' }}>Animal-Island-UI</a>
+        </p>
       </footer>
       <Footer type="sea" />
     </div>
