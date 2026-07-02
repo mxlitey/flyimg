@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="frontend/favicon.png" alt="Flyimg Logo" width="80" height="80">
+  <img src="frontend\public\favicon.png" alt="Flyimg Logo" width="80" height="80">
   <h1>Flyimg · 瞬传・瞬用</h1>
   <p>基于 Cloudflare Workers + Assets + R2 + D1 的极简临时资源存储</p>
   <p>自动过期 · 全球加速 · 免费额度友好</p>

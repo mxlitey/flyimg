@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Button, Icon } from 'animal-island-ui'
+import { Button, Footer, Icon } from 'animal-island-ui'
 import { displayConfig } from '../lib/config'
 
 export interface LayoutContext {
@@ -72,6 +72,7 @@ export default function Layout() {
           <a href="https://github.com/guokaigdg/animal-island-ui" target="_blank" rel="noopener" style={{ color: '#8a7a66' }}>Animal-Island-UI</a>
         </p>
       </footer>
+      <Footer type="sea" seamless />
     </div>
   )
 }
