@@ -45,3 +45,16 @@ body {
 [class*="animal-body"] {
   overflow: visible !important;
 }
+
+/* 强制 AI Select 下拉菜单出现在 trigger 右侧（覆盖组件内的自适应定位） */
+[class*="animal-dropdown"] {
+  left: 100% !important;
+  right: auto !important;
+  margin-left: 6px !important;
+  margin-right: 0 !important;
+  top: 50% !important;
+  bottom: auto !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  transform: translateY(-50%) !important;
+}
