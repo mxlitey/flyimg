@@ -33,3 +33,15 @@ body {
   width: max-content;
   min-width: 100%;
 }
+
+/* 允许 AI Select 下拉菜单溢出 Modal：
+   Modal 默认 overflow:hidden + clip-path 会裁剪下拉菜单，
+   这里移除 clip-path 改用 border-radius 近似外观，并开放溢出。 */
+[class*="animal-modalClipped"] {
+  overflow: visible !important;
+  clip-path: none !important;
+  border-radius: 24px !important;
+}
+[class*="animal-body"] {
+  overflow: visible !important;
+}
