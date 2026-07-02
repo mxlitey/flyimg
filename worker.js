@@ -125,18 +125,6 @@ function isStaticAsset(pathname) {
   return false;
 }
 
-function isValidUserTag(tag) {
-  if (!tag || tag.length > 32) return false;
-  return /^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$/.test(tag);
-}
-
-function isUserTagRoute(pathname) {
-  if (pathname === '/' || pathname === '') return false;
-  const segments = pathname.split('/').filter(s => s.length > 0);
-  if (segments.length !== 1) return false;
-  return isValidUserTag(segments[0]);
-}
-
 function getFileExtension(mimeType) {
   if (MIME_TO_EXT[mimeType]) return MIME_TO_EXT[mimeType];
   if (!mimeType || mimeType === 'application/octet-stream') return 'bin';
@@ -755,10 +743,10 @@ function addSecurityHeaders(response) {
   if (contentType.includes('text/html')) {
     headers.set('Content-Security-Policy',
       "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
-      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+      "script-src 'self'; " +
+      "style-src 'self' 'unsafe-inline'; " +
       "img-src * data: blob:; " +
-      "font-src https://cdn.jsdelivr.net; " +
+      "font-src 'self'; " +
       "connect-src 'self'; " +
       "frame-ancestors 'none'; " +
       "base-uri 'self'; " +
@@ -814,16 +802,8 @@ export default {
       return jsonResponse({ error: 'Not Found' }, 404, origin, CONFIG);
     }
 
-    if (isUserTagRoute(url.pathname)) {
-      const assetUrl = new URL(url.origin);
-      assetUrl.pathname = '/user/index.html';
-      const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), {
-        method: 'GET',
-        headers: { 'Accept': 'text/html' },
-      }));
-      return addSecurityHeaders(assetResponse);
-    }
-
+    // 静态资源由 Cloudflare Assets 提供；SPA 回退（not_found_handling）负责将
+    // 未知路径交由前端 react-router 处理（如 /:userTag、/admin）。
     const assetResponse = await env.ASSETS.fetch(request);
     return addSecurityHeaders(assetResponse);
   },
