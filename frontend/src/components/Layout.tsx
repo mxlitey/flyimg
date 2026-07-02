@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Button, Footer, Icon } from 'animal-island-ui'
+import { Button, Icon } from 'animal-island-ui'
 import { displayConfig } from '../lib/config'
 
 export interface LayoutContext {
@@ -56,9 +56,6 @@ export default function Layout() {
             <Button type={isActive('/admin') ? 'primary' : 'text'} size="small" icon={<Icon name="icon-design" size={16} />} onClick={() => navigate('/admin')}>
               管理
             </Button>
-            <Button type="text" size="small" onClick={() => window.open('https://github.com/mxlitey/flyimg', '_blank', 'noopener')}>
-              GitHub
-            </Button>
           </div>
         </div>
       </nav>
@@ -70,12 +67,11 @@ export default function Layout() {
       <footer className="text-center text-sm py-4 w-full" style={{ color: '#8a7a66' }}>
         <p style={{ margin: '0.25rem 0' }}>Flyimg · 瞬传・瞬用 — 基于 Cloudflare R2 构建</p>
         <p style={{ margin: '0.25rem 0' }}>
-          <a href="https://github.com/mxlitey/flyimg" target="_blank" rel="noopener" style={{ color: '#8a7a66', textDecoration: 'none' }}>GitHub</a>
-          {' · Made with '}
-          <a href="https://github.com/guokaigdg/animal-island-ui" target="_blank" rel="noopener" style={{ color: '#8a7a66', textDecoration: 'none' }}>Animal-Island-UI</a>
+          <a href="https://github.com/mxlitey/flyimg" target="_blank" rel="noopener" style={{ color: '#8a7a66' }}>GitHub</a>
+          {' · '}
+          <a href="https://github.com/guokaigdg/animal-island-ui" target="_blank" rel="noopener" style={{ color: '#8a7a66' }}>Animal-Island-UI</a>
         </p>
       </footer>
-      <Footer type="sea" />
     </div>
   )
 }
