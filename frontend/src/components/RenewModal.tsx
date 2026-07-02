@@ -50,7 +50,7 @@ export default function RenewModal({
   return (
     <ModalShell
       open={open}
-      title={isAdmin ? '续期资源（管理员）' : '续期资源'}
+      title="续期资源"
       onClose={onClose}
       onConfirm={onConfirm}
       confirmLabel="确认续期"
