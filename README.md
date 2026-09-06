@@ -12,6 +12,7 @@
 - 🚀 **一键部署**：Fork + 配置 Secrets，全自动部署到 Cloudflare
 - 📦 **统一架构**：Workers + Assets 单一部署，前后端同域
 - 📤 **直连上传**：前端直连 Worker API，架构简洁、延迟低
+- 📁 **静态资源托管**：文件夹整体上传，保留目录结构（支持嵌套子目录），根目录 `index.html` 一键整体预览；文件夹中未开放类型的文件自动跳过，不影响整体上传
 - 👤 **用户标识**：通过用户名区分，支持查看个人上传的文件
 - 🔄 **资源续期**：支持为资源续期延长过期时间，可配置续期次数和时长
 - 🛡️ **管理后台**：CRON_SECRET 鉴权，查看/删除/续期/批量操作/按用户筛选
@@ -110,7 +111,7 @@
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时） |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
-| `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
+| `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型。文件夹上传时，未开放类型的文件会被**自动跳过**，不影响文件夹内其他文件上传 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置，格式：`次数;分钟1;分钟2;...`，0表示长期 |
 | `SITE_DOMAIN` | 空（走代理预览） | 项目域名（前端访问域名），可选。配置后 R2 CORS 仅允许该域名来源，前端在该域名下可**直链预览**（文本/MD/HTML/视频等直接读 R2，不经过 Worker）；不配置则全部内容走 Worker 代理预览。带不带 `https://` 均可 |
@@ -242,6 +243,82 @@ curl -X POST https://your-worker.workers.dev/upload \
 }
 ```
 
+### 上传文件夹（静态资源托管）
+
+文件夹整体上传，保留目录结构，适合托管静态网站/前端产物。采用**分阶段上传**：初始化 → 逐文件 → 完成。文件夹总大小受 `MAX_STORAGE_SIZE` 限制；`ALLOWED_TYPES` 未开放类型的文件**自动跳过**（返回 `skipped`），不影响其余文件上传。
+
+**① 初始化上传**
+
+```bash
+curl -X POST https://your-worker.workers.dev/upload-folder/init \
+  -H "Content-Type: application/json" \
+  -d '{"user_tag": "myname", "total_size": 10485760, "file_count": 12, "name": "my-site"}'
+```
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `user_tag` | String | ❌ | 用户名，默认 `default` |
+| `total_size` | Number | ✅ | 文件夹内所有文件的总字节数（校验剩余空间） |
+| `file_count` | Number | ✅ | 文件总数（上限 5000） |
+| `name` | String | ❌ | 原始文件夹名，用于生成 key（命名规则与单文件一致：时间戳-随机-清洗后名称） |
+
+**响应**：`{"success": true, "folder_key": "1788691292000-abc12345", "expire_at": "..."}`
+
+**② 逐文件上传**（每个文件一次请求）
+
+```bash
+curl -X POST https://your-worker.workers.dev/upload-folder/file \
+  -F "file=@./index.html" \
+  -F "folder_key=1788691292000-abc12345" \
+  -F "rel_path=index.html" \
+  -F "user_tag=myname"
+```
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `file` | File | ✅ | 文件内容 |
+| `folder_key` | String | ✅ | 初始化返回的文件夹 key |
+| `rel_path` | String | ✅ | 相对路径（含目录，如 `assets/style.css`），即 R2 对象 key |
+| `user_tag` | String | ❌ | 用户名，需与初始化时一致 |
+
+**响应**（成功）：`{"success": true, "rel_path": "index.html", "size": 1024}`
+**响应**（类型未开放被跳过）：`{"success": false, "skipped": true, "message": "跳过不支持的类型：xx.exe"}`
+
+**③ 完成上传**
+
+```bash
+curl -X POST https://your-worker.workers.dev/upload-folder/finish \
+  -H "Content-Type: application/json" \
+  -d '{"folder_key": "1788691292000-abc12345", "user_tag": "myname"}'
+```
+
+**响应**：`{"success": true, "folder_key": "...", "size": 10485760, "file_count": 12, "index_url": "https://pub-xxx.r2.dev/1788691292000-abc12345/index.html", "expire_at": "..."}`
+
+> `index_url` 仅在根目录存在 `index.html` / `index.htm` 时返回，前端会用它作为文件夹整体预览入口。
+
+**④ 中止上传**（可选）：删除已上传的部分文件，接口 `/upload-folder/abort`，参数同上（`folder_key`、`user_tag`）。
+
+**⑤ 查询文件夹成员（文件树）**
+
+```bash
+curl "https://your-worker.workers.dev/folder-files?folder_key=1788691292000-abc12345&user_tag=myname"
+```
+
+**响应**：
+
+```json
+{
+  "success": true,
+  "folder_key": "1788691292000-abc12345",
+  "files": [
+    { "rel_path": "index.html", "size": 1024, "url": "https://pub-xxx.r2.dev/1788691292000-abc12345/index.html" },
+    { "rel_path": "assets/style.css", "size": 512, "url": "https://pub-xxx.r2.dev/1788691292000-abc12345/assets/style.css" }
+  ]
+}
+```
+
+> 文件夹的删除、续期与单文件共用 `/delete`、`/renew` 接口，只需把 `filename` 换成文件夹的 `folder_key` 即可整体操作。
+
 ### 查询用户文件
 
 ```bash
@@ -264,12 +341,26 @@ curl https://your-worker.workers.dev/my-images?user_tag=myname
       "renew_count": 0
     }
   ],
+  "folders": [
+    {
+      "folder_key": "1788691292000-abc12345",
+      "size": 10485760,
+      "file_count": 12,
+      "index_path": "index.html",
+      "url": "https://pub-xxx.r2.dev/1788691292000-abc12345/index.html",
+      "expire_at": "2025-01-02T00:00:00.000Z",
+      "created_at": "2025-01-01T12:00:00.000Z",
+      "renew_count": 0
+    }
+  ],
   "renew_config": {
     "max_count": 3,
     "durations": [60, 180, 360, 720]
   }
 }
 ```
+
+> `folders` 数组为当前用户的文件夹（静态资源站点）。`index_path` 为根目录首页文件；无 `index.html` 时 `index_path`/`url` 为 `null`，可继续用 `/folder-files` 文件树预览。
 
 ### 续期资源
 
@@ -355,7 +446,7 @@ curl https://your-worker.workers.dev/stats
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时），同时决定 R2 缓存的 max-age |
 | `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
-| `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
+| `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型。文件夹上传时，未开放类型的文件会被**自动跳过**，不影响文件夹内其他文件上传 |
 | `CORS_ALLOWED_ORIGINS` | `*` | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置：`次数;分钟1;分钟2;...`，0 表示长期 |
 | `SITE_DOMAIN` | 空（走代理预览） | 项目域名（前端访问域名），可选。配置后 R2 CORS 仅允许该域名来源，前端在该域名下直链预览；不配置则全部内容走 Worker 代理预览。带不带 `https://` 均可 |
@@ -450,6 +541,14 @@ curl https://your-worker.workers.dev/stats
 
 **不经过**。直链是 R2 公网地址，速度更快、不消耗 Worker 请求额度。
 
+### 如何托管静态网站 / 前端产物？
+
+1. 在**上传页**点击"选择文件夹"（或直接把文件夹拖入上传区域），选择打包后的静态资源目录（含 `index.html`）
+2. 上传完成会自动保留目录结构，根目录存在 `index.html` 时提供整体预览入口
+3. 在"我的文件"中打开该文件夹即可**整体预览**（首页渲染 / 文件树浏览），或复制 `index_url` 直链使用
+
+> 文件夹内 `ALLOWED_TYPES` 未开放类型的文件会被自动跳过；文件夹支持嵌套子目录，且总大小计入 `MAX_STORAGE_SIZE`。
+
 ### 如何进入管理后台？
 
 访问 `https://你的域名/admin`，输入 `CRON_SECRET` 进行登录。
@@ -491,7 +590,8 @@ flyimg/
 │   └── favicon.png       # 图标
 ├── worker.js             # Worker 后端 API + 静态资源路由
 ├── migrations/
-│   └── 0001_init.sql     # D1 初始化
+│   ├── 0001_init.sql     # D1 初始化
+│   └── 0002_folder.sql   # 文件夹（静态资源托管）表
 ├── skills/
 │   └── flyimg/           # Agent Skill（详见下方"Skill"章节）
 │       ├── SKILL.md      # Skill 入口：触发描述 + 调用流程
@@ -633,6 +733,30 @@ Skill 源文件位于本仓库的 [skills/flyimg/](skills/flyimg/) 目录：
 - `idx_images_user_tag`：按用户查询文件时使用
 - `idx_images_expire_at`：定时任务查找过期文件时使用
 - `idx_images_filename`：按文件名精确查询时使用
+
+### 文件夹表（静态资源托管）
+
+`migrations/0002_folder.sql` 新增两张表，存储文件夹（静态资源站点）元数据：
+
+**`folders` 表**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | INTEGER | 主键，自增 ID |
+| `folder_key` | TEXT | 文件夹唯一 key（唯一索引），即 R2 目录前缀，命名规则与单文件一致 |
+| `name` | TEXT | 原始文件夹名（仅展示用） |
+| `user_tag` | TEXT | 用户名标签 |
+| `size` | INTEGER | 文件夹总大小（字节） |
+| `file_count` | INTEGER | 文件总数 |
+| `index_path` | TEXT | 根目录首页相对路径（`index.html`/`index.htm`），无则 `NULL` |
+| `renew_count` | INTEGER | 已续期次数 |
+| `expire_at` | TEXT | 过期时间（ISO 8601 格式） |
+| `created_at` | TEXT | 创建时间（ISO 8601 格式） |
+| `status` | TEXT | `uploading`（上传中）/ `active`（已生效） |
+
+**`folder_files` 表**：记录每个成员文件的相对路径与大小，`(folder_key, rel_path)` 唯一。
+
+> R2 中文件夹内的对象 key 为 `folder_key/相对路径`（如 `1788691292000-abc12345/assets/style.css`），与数据库 `rel_path` 一一对应。
 
 ### 部署时自动应用
 
