@@ -116,7 +116,7 @@ export default function UploadPage() {
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', marginTop: '0.5rem' }}>
             支持 {displayConfig.allowedTypesDisplay} 格式，最大 {displayConfig.maxFileSizeMB}MB
           </p>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
         </Card>
       )}
 
