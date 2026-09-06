@@ -130,21 +130,30 @@ export function fileSources(filename: string): string[] {
  * 内容读取：优先 R2 直链（需桶已配 CORS），
  * 直链被浏览器拦截（未配 CORS）或失败时，自动回退到 worker 同源代理 /content，
  * 保证 HTML/MD/文本源码预览在任何环境下可用。
+ * 返回实际命中的源（直链 / 代理），供界面标记展示。
  */
-async function fetchFileBinary(filename: string): Promise<Response> {
+export type FileSourceKind = 'direct' | 'proxy'
+
+async function fetchFileBinary(filename: string): Promise<{ resp: Response; source: FileSourceKind }> {
   if (fileBaseUrl) {
     try {
       const resp = await fetch(fileUrl(filename), { mode: 'cors' })
-      if (resp.ok) return resp
+      if (resp.ok) return { resp, source: 'direct' }
     } catch {
       // 直链跨域被拦截 → 走代理兜底
     }
   }
   const proxy = await fetch(`${apiBase}/content?filename=${encodeURIComponent(filename)}`)
   if (!proxy.ok) throw new Error(`读取文件失败 (${proxy.status})`)
-  return proxy
+  return { resp: proxy, source: 'proxy' }
 }
 
 export async function fetchFileText(filename: string): Promise<string> {
-  return (await fetchFileBinary(filename)).text()
+  return (await fetchFileBinary(filename)).resp.text()
+}
+
+/** 读取文件文本并返回实际使用的源（直链 / 代理），预览界面标记用 */
+export async function fetchFileTextWithSource(filename: string): Promise<{ text: string; source: FileSourceKind }> {
+  const { resp, source } = await fetchFileBinary(filename)
+  return { text: await resp.text(), source }
 }

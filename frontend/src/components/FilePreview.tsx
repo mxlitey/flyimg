@@ -23,7 +23,7 @@ import plaintext from 'highlight.js/lib/languages/plaintext'
 import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
 import { getFileKind, getFileExt, type FileKind } from '../lib/utils'
-import { fetchFileText, fileSources, fileUrl } from '../lib/api'
+import { fetchFileText, fetchFileTextWithSource, fileSources, fileUrl, type FileSourceKind } from '../lib/api'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -73,20 +73,48 @@ function PreviewError({ message }: { message: string }) {
   return <div style={{ textAlign: 'center', padding: '2rem 0', color: '#b91c1c', fontSize: '0.875rem' }}>{message}</div>
 }
 
+/** 预览来源标记：直链 / 代理 */
+function SourceBadge({ source }: { source: FileSourceKind }) {
+  const direct = source === 'direct'
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+      <span
+        style={{
+          fontSize: '0.6875rem', lineHeight: 1.4, padding: '0.15rem 0.5rem', borderRadius: '9999px',
+          border: `1px solid ${direct ? '#99f6e4' : '#fcd34d'}`,
+          color: direct ? '#0f766e' : '#b45309',
+          background: direct ? '#f0fdfa' : '#fffbeb',
+        }}
+      >
+        {direct ? '直链' : '代理'}
+      </span>
+    </div>
+  )
+}
+
 /**
  * 音视频预览：直链优先，直链无法加载时自动回退到 worker 同源代理。
  * 媒体标签加载本身不需要 CORS，但直链域名异常时代理兜底保证可播放。
  */
-function MediaPreview({ filename, kind, maxHeight = 520 }: { filename: string; kind: 'video' | 'audio'; maxHeight?: number | string }) {
+function MediaPreview({ filename, kind, maxHeight = 520, onSource }: {
+  filename: string
+  kind: 'video' | 'audio'
+  maxHeight?: number | string
+  onSource?: (s: FileSourceKind) => void
+}) {
   const [srcIdx, setSrcIdx] = useState(0)
   const sources = fileSources(filename)
   const src = sources[srcIdx]
   const heightStyle = typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight
 
+  // 媒体元数据就绪即确认当前源可用：index 0 为直链，其余为代理
+  const onLoadedMetadata = () => onSource?.(srcIdx === 0 ? 'direct' : 'proxy')
+
   const commonProps = {
     controls: true,
     preload: 'metadata' as const,
     src,
+    onLoadedMetadata,
     onError: () => {
       if (srcIdx + 1 < sources.length) setSrcIdx(srcIdx + 1)
     },
@@ -105,7 +133,7 @@ function MediaPreview({ filename, kind, maxHeight = 520 }: { filename: string; k
 }
 
 /** 文本类预览（txt/log/json/代码等），通过 R2 直链读取 */
-function TextContentPreview({ filename }: { filename: string }) {
+function TextContentPreview({ filename, onSource }: { filename: string; onSource?: (s: FileSourceKind) => void }) {
   const [content, setContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -113,11 +141,11 @@ function TextContentPreview({ filename }: { filename: string }) {
     let cancelled = false
     setContent(null)
     setError(null)
-    fetchFileText(filename)
-      .then((text) => { if (!cancelled) setContent(text) })
+    fetchFileTextWithSource(filename)
+      .then(({ text, source }) => { if (!cancelled) { setContent(text); onSource?.(source) } })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : '读取失败') })
     return () => { cancelled = true }
-  }, [filename])
+  }, [filename, onSource])
 
   if (error) return <PreviewError message={error} />
   if (content === null) return <PreviewLoading />
@@ -136,7 +164,7 @@ function TextContentPreview({ filename }: { filename: string }) {
 }
 
 /** Markdown 渲染预览（marked + highlight.js 高亮 + DOMPurify 防 XSS） */
-function MarkdownPreview({ filename }: { filename: string }) {
+function MarkdownPreview({ filename, onSource }: { filename: string; onSource?: (s: FileSourceKind) => void }) {
   const [html, setHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -144,14 +172,15 @@ function MarkdownPreview({ filename }: { filename: string }) {
     let cancelled = false
     setHtml(null)
     setError(null)
-    fetchFileText(filename)
-      .then((text) => {
+    fetchFileTextWithSource(filename)
+      .then(({ text, source }) => {
         if (cancelled) return
         setHtml(DOMPurify.sanitize(md.parse(text) as string))
+        onSource?.(source)
       })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : '读取失败') })
     return () => { cancelled = true }
-  }, [filename])
+  }, [filename, onSource])
 
   if (error) return <PreviewError message={error} />
   if (html === null) return <PreviewLoading />
@@ -182,7 +211,7 @@ function htmlWithBase(html: string, filename: string): string {
  * 而 srcDoc 不向直链域名发起请求，可绕开该限制且内容仍由直链读取。
  * sandbox 禁脚本；注入 <base> 后相对路径子资源按直链解析。
  */
-function HtmlPreview({ filename }: { filename: string }) {
+function HtmlPreview({ filename, onSource }: { filename: string; onSource?: (s: FileSourceKind) => void }) {
   const [mode, setMode] = useState<'source' | 'render'>('render')
   const [html, setHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -192,11 +221,11 @@ function HtmlPreview({ filename }: { filename: string }) {
     setHtml(null)
     setError(null)
     if (mode !== 'render') return
-    fetchFileText(filename)
-      .then((text) => { if (!cancelled) setHtml(text) })
+    fetchFileTextWithSource(filename)
+      .then(({ text, source }) => { if (!cancelled) { setHtml(text); onSource?.(source) } })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'HTML 读取失败') })
     return () => { cancelled = true }
-  }, [filename, mode])
+  }, [filename, mode, onSource])
 
   return (
     <div>
@@ -369,46 +398,57 @@ function AudioThumb() {
   )
 }
 
-/** 主预览组件：按文件类型分发渲染 */
+/** 主预览组件：按文件类型分发渲染，顶部显示直链/代理来源标记 */
 export default function FilePreview({ url, filename, maxHeight = 520 }: FilePreviewProps) {
   const kind: FileKind = getFileKind(filename)
   const heightStyle = typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight
+  const [source, setSource] = useState<FileSourceKind | null>(null)
 
+  // 图片始终走直链展示（<img> 加载不需要 CORS），直接标记为直链
+  useEffect(() => {
+    if (kind === 'image') setSource('direct')
+  }, [kind])
+
+  let content: ReactNode
   if (kind === 'image') {
-    return (
+    content = (
       <div style={{ textAlign: 'center', maxHeight: heightStyle, overflow: 'hidden' }}>
         <img src={url} alt={filename} style={{ maxWidth: '100%', maxHeight: heightStyle, objectFit: 'contain', borderRadius: '0.75rem' }} />
       </div>
     )
+  } else if (kind === 'video') {
+    content = <MediaPreview filename={filename} kind="video" maxHeight={heightStyle} onSource={setSource} />
+  } else if (kind === 'audio') {
+    content = <MediaPreview filename={filename} kind="audio" onSource={setSource} />
+  } else if (kind === 'markdown') {
+    content = <MarkdownPreview filename={filename} onSource={setSource} />
+  } else if (kind === 'html') {
+    content = <HtmlPreview filename={filename} onSource={setSource} />
+  } else if (kind === 'text') {
+    content = <TextContentPreview filename={filename} onSource={setSource} />
+  } else {
+    // PDF 与 zip 等类型不做窗口预览：显示"暂不支持在线预览"并提供打开原文件
+    content = (
+      <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+        <p style={{ color: mutedColor, margin: '0 0 0.75rem', fontSize: '0.875rem' }}>
+          该类型暂不支持在线预览
+        </p>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#0f766e', fontSize: '0.875rem', fontWeight: 600 }}
+        >
+          打开原文件
+        </a>
+      </div>
+    )
   }
-
-  if (kind === 'video') {
-    return <MediaPreview filename={filename} kind="video" maxHeight={heightStyle} />
-  }
-
-  if (kind === 'audio') {
-    return <MediaPreview filename={filename} kind="audio" />
-  }
-
-  // PDF 与 zip 等类型一样不做窗口预览：显示"暂不支持在线预览"并提供打开原文件
-
-  if (kind === 'markdown') return <MarkdownPreview filename={filename} />
-  if (kind === 'html') return <HtmlPreview filename={filename} />
-  if (kind === 'text') return <TextContentPreview filename={filename} />
 
   return (
-    <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
-      <p style={{ color: mutedColor, margin: '0 0 0.75rem', fontSize: '0.875rem' }}>
-        该类型暂不支持在线预览
-      </p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: '#0f766e', fontSize: '0.875rem', fontWeight: 600 }}
-      >
-        打开原文件
-      </a>
+    <div>
+      {source && <SourceBadge source={source} />}
+      {content}
     </div>
   )
 }
