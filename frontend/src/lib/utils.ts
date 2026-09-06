@@ -65,3 +65,38 @@ export async function copyText(text: string): Promise<boolean> {
     }
   }
 }
+
+// ---- 文件类型检测（用于预览） ----
+
+export type FileKind = 'image' | 'video' | 'audio' | 'pdf' | 'markdown' | 'html' | 'text' | 'zip' | 'other'
+
+const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'])
+const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'avi', 'm4v', 'mkv'])
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac', 'opus'])
+const MARKDOWN_EXTS = new Set(['md', 'markdown', 'mdx'])
+const HTML_EXTS = new Set(['html', 'htm'])
+const TEXT_EXTS = new Set([
+  'txt', 'log', 'csv', 'json', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx',
+  'css', 'scss', 'less', 'xml', 'yaml', 'yml', 'ini', 'conf', 'cfg', 'env',
+  'sh', 'bash', 'py', 'rb', 'go', 'java', 'c', 'cpp', 'h', 'hpp', 'rs',
+  'php', 'sql', 'toml', 'properties', 'gitignore', 'dockerfile', 'vue',
+])
+
+export function getFileExt(filename: string): string {
+  const name = filename.split('/').pop() || ''
+  const idx = name.lastIndexOf('.')
+  return idx > 0 ? name.slice(idx + 1).toLowerCase() : ''
+}
+
+export function getFileKind(filename: string): FileKind {
+  const ext = getFileExt(filename)
+  if (IMAGE_EXTS.has(ext)) return 'image'
+  if (VIDEO_EXTS.has(ext)) return 'video'
+  if (AUDIO_EXTS.has(ext)) return 'audio'
+  if (ext === 'pdf') return 'pdf'
+  if (MARKDOWN_EXTS.has(ext)) return 'markdown'
+  if (HTML_EXTS.has(ext)) return 'html'
+  if (TEXT_EXTS.has(ext)) return 'text'
+  if (ext === 'zip') return 'zip'
+  return 'other'
+}

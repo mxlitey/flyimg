@@ -6,6 +6,7 @@ import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/util
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
+import FilePreview, { FileThumb } from '../components/FilePreview'
 
 interface ConfirmState {
   title: string
@@ -65,6 +66,7 @@ export default function AdminPage() {
   const [renewTarget, setRenewTarget] = useState<ImageItem | null>(null)
   const [renewDuration, setRenewDuration] = useState('')
   const [renewing, setRenewing] = useState(false)
+  const [previewTarget, setPreviewTarget] = useState<ImageItem | null>(null)
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
 
@@ -283,13 +285,13 @@ export default function AdminPage() {
       render: (_v, record) => {
         const r = record as unknown as ImageItem
         return (
-          <img
-            src={r.url}
-            alt=""
-            style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, opacity: r.expired ? 0.5 : 1 }}
-            loading="lazy"
-            onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
-          />
+          <div
+            style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', cursor: 'pointer', opacity: r.expired ? 0.5 : 1 }}
+            onClick={() => setPreviewTarget(r)}
+            title="点击预览"
+          >
+            <FileThumb url={r.url} filename={r.filename} />
+          </div>
         )
       },
     },
@@ -328,6 +330,9 @@ export default function AdminPage() {
         const r = record as unknown as ImageItem
         return (
           <div className="flex gap-1 flex-wrap">
+            <Button size="small" onClick={() => setPreviewTarget(r)}>
+              预览
+            </Button>
             <Button size="small" onClick={() => doCopy(r.url)}>
               复制
             </Button>
@@ -443,6 +448,10 @@ export default function AdminPage() {
         loading={renewing}
         isAdmin
       />
+
+      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720}>
+        {previewTarget && <FilePreview url={previewTarget.url} filename={previewTarget.filename} />}
+      </ModalShell>
 
       <ModalShell
         open={!!confirm}

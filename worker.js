@@ -52,7 +52,7 @@ const UNSIGNABLE_TYPES = new Set([
   'audio/mp4', 'video/x-msvideo',
 ]);
 
-const API_ROUTES = ['/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images', '/renew'];
+const API_ROUTES = ['/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images', '/renew', '/content'];
 
 const ROUTE_METHODS = {
   '/upload': 'POST',
@@ -62,6 +62,7 @@ const ROUTE_METHODS = {
   '/my-images': 'GET',
   '/all-images': 'GET',
   '/renew': 'POST',
+  '/content': 'GET',
 };
 
 const STATIC_EXTENSIONS = new Set([
@@ -557,6 +558,35 @@ async function handleAllImages(request, env, CONFIG) {
   }
 }
 
+// 内容代理：按文件名从 R2 读取文件内容并返回（带 CORS 响应头），
+// 供前端文本/Markdown/ZIP 预览使用（避免依赖 R2 公共域名的 CORS 配置）
+async function handleContent(request, env, CONFIG) {
+  const origin = request.headers.get('Origin');
+
+  try {
+    const url = new URL(request.url);
+    const filename = url.searchParams.get('filename') || '';
+
+    if (!filename || !/^[^\x00-\x1f\x7f\/\\]+$/.test(filename)) {
+      return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
+    }
+
+    const object = await env.R2_BUCKET.get(filename);
+    if (!object) {
+      return jsonResponse({ error: '文件不存在或已过期' }, 404, origin, CONFIG);
+    }
+
+    const headers = getResponseHeaders(origin, CONFIG);
+    headers['Content-Type'] = object.httpMetadata?.contentType || 'application/octet-stream';
+    headers['Cache-Control'] = object.httpMetadata?.cacheControl || `public, max-age=${CONFIG.CACHE_MAX_AGE}`;
+    return new Response(object.body, { headers });
+
+  } catch (error) {
+    console.error('Content failed:', error);
+    return jsonResponse({ error: '读取文件失败，请稍后重试' }, 500, origin, CONFIG);
+  }
+}
+
 async function handleDelete(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
 
@@ -798,6 +828,7 @@ export default {
       if (url.pathname === '/clean') return handleClean(request, env, CONFIG);
       if (url.pathname === '/stats') return handleStats(request, env, CONFIG);
       if (url.pathname === '/renew') return handleRenew(request, env, CONFIG);
+      if (url.pathname === '/content') return handleContent(request, env, CONFIG);
 
       return jsonResponse({ error: 'Not Found' }, 404, origin, CONFIG);
     }

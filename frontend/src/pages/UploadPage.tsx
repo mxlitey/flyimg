@@ -5,6 +5,7 @@ import { uploadFile } from '../lib/api'
 import { displayConfig } from '../lib/config'
 import { copyText, hoursLeft } from '../lib/utils'
 import { useToast } from '../components/Toast'
+import FilePreview from '../components/FilePreview'
 import type { LayoutContext } from '../components/Layout'
 
 type Phase = 'idle' | 'uploading' | 'done'
@@ -152,9 +153,9 @@ export default function UploadPage() {
             </span>
           </div>
 
-          {result.url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) && (
-            <div className="text-center mb-6">
-              <img src={result.url} alt="预览" style={{ maxWidth: '100%', maxHeight: '20rem', borderRadius: '0.75rem', objectFit: 'contain' }} />
+          {result.url && (
+            <div className="mb-6">
+              <FilePreview url={result.url} filename={decodeURIComponent(result.url.split('/').pop() || '')} maxHeight={320} />
             </div>
           )}
 

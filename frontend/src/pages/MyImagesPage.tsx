@@ -5,7 +5,9 @@ import { fetchMyImages, renewFile, type ImageItem, type RenewConfig } from '../l
 import { displayConfig } from '../lib/config'
 import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
+import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
+import FilePreview, { FileThumb } from '../components/FilePreview'
 
 export default function MyImagesPage() {
   const { userTag = '' } = useParams()
@@ -22,6 +24,7 @@ export default function MyImagesPage() {
   const [renewTarget, setRenewTarget] = useState<ImageItem | null>(null)
   const [renewDuration, setRenewDuration] = useState<string>(String(displayConfig.renewDurations[0] ?? 60))
   const [renewing, setRenewing] = useState(false)
+  const [previewTarget, setPreviewTarget] = useState<ImageItem | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -103,13 +106,13 @@ export default function MyImagesPage() {
             const canRenew = (img.renew_count || 0) < renewConfig.max_count
             return (
               <Card key={img.filename} className="overflow-hidden" style={{ padding: 0 }}>
-                <img
-                  src={img.url}
-                  alt="资源"
-                  style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                  loading="lazy"
-                  onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
-                />
+                <div
+                  style={{ height: 160, cursor: 'pointer' }}
+                  onClick={() => setPreviewTarget(img)}
+                  title="点击预览"
+                >
+                  <FileThumb url={img.url} filename={img.filename} />
+                </div>
                 <div style={{ padding: '0.75rem' }}>
                   <p
                     title={img.filename}
@@ -126,6 +129,9 @@ export default function MyImagesPage() {
                     <Button size="small" type="primary" block onClick={() => doCopy(img.url)}>
                       复制
                     </Button>
+                    <Button size="small" block onClick={() => setPreviewTarget(img)}>
+                      预览
+                    </Button>
                     {canRenew && (
                       <Button size="small" type="primary" block onClick={() => openRenew(img)}>
                         续期
@@ -138,6 +144,10 @@ export default function MyImagesPage() {
           })}
         </div>
       )}
+
+      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720}>
+        {previewTarget && <FilePreview url={previewTarget.url} filename={previewTarget.filename} />}
+      </ModalShell>
 
       <RenewModal
         open={!!renewTarget}

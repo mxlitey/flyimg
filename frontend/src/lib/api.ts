@@ -111,3 +111,27 @@ export async function renewFile(filename: string, duration: number, userTag: str
   })
   return resp.json()
 }
+
+// 通过 worker /content 代理读取文件内容（避免依赖 R2 公共域名 CORS）
+async function fetchFileBinary(filename: string): Promise<Response> {
+  const resp = await fetch(`${apiBase}/content?filename=${encodeURIComponent(filename)}`)
+  if (!resp.ok) {
+    let msg = `读取文件失败 (${resp.status})`
+    try {
+      const data = await resp.json()
+      if (data.error) msg = data.error
+    } catch {
+      // 保留默认错误信息
+    }
+    throw new Error(msg)
+  }
+  return resp
+}
+
+export async function fetchFileText(filename: string): Promise<string> {
+  return (await fetchFileBinary(filename)).text()
+}
+
+export async function fetchFileArrayBuffer(filename: string): Promise<ArrayBuffer> {
+  return (await fetchFileBinary(filename)).arrayBuffer()
+}
