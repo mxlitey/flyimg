@@ -25,7 +25,7 @@ interface ModalShellProps {
  * 统一弹窗骨架：
  * - 关闭打字机效果（typewriter=false）
  * - 自定义底部（footer=null）：取消=primary block + 确认=可配 danger/primary block
- * - 标题自带右上角关闭叉号，文件名过长省略号截断（移动端字号自适应）
+ * - 关闭叉号固定在弹窗右上角（相对 .animal-modal 绝对定位），标题自动换行（移动端字号自适应）
  * - title 与 children 透传，各业务弹窗自行填内容
  */
 export default function ModalShell({
@@ -45,32 +45,30 @@ export default function ModalShell({
     <Modal
       open={open}
       title={
-        <div
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: '0.75rem', width: '100%', overflow: 'hidden',
-          }}
-        >
+        <div style={{ width: '100%' }}>
           <span
             style={{
+              display: 'block',
               fontSize: 'clamp(0.875rem, 2.6vw, 1.0625rem)',
               lineHeight: 1.4,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              minWidth: 0,
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
             }}
           >
             {title}
           </span>
+          {/* 固定在弹窗右上角：.animal-modal 为 position:relative 定位上下文 */}
           <button
             type="button"
             onClick={onClose}
             aria-label="关闭"
             style={{
+              position: 'absolute',
+              top: '0.5rem',
+              right: '0.5rem',
               background: 'none', border: 'none', cursor: 'pointer',
               fontSize: '1.25rem', lineHeight: 1, color: '#8a7760',
-              padding: '0.25rem', flexShrink: 0, borderRadius: '0.375rem',
+              padding: '0.25rem', borderRadius: '0.375rem',
             }}
           >
             ×

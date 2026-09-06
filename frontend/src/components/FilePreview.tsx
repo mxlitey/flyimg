@@ -61,7 +61,7 @@ const md = new Marked(
 interface FilePreviewProps {
   /** 文件直链（R2 公共域名） */
   url: string
-  /** 文件名（用于类型检测与内容代理读取） */
+  /** 文件名（用于类型检测与内容直链读取） */
   filename: string
   /** 预览区最大高度，默认 520px */
   maxHeight?: number | string
@@ -77,7 +77,7 @@ function PreviewError({ message }: { message: string }) {
   return <div style={{ textAlign: 'center', padding: '2rem 0', color: '#b91c1c', fontSize: '0.875rem' }}>{message}</div>
 }
 
-/** 文本类预览（txt/log/json/代码等），通过 /content 代理读取 */
+/** 文本类预览（txt/log/json/代码等），通过 R2 直链读取 */
 function TextContentPreview({ filename }: { filename: string }) {
   const [content, setContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -139,8 +139,7 @@ function MarkdownPreview({ filename }: { filename: string }) {
 
 /**
  * HTML 预览：源码 / 渲染 两种模式。
- * 渲染模式：直链 CORS 读取 HTML 内容（直链优先，未配置直链或 CORS 失败时回退 worker 代理），
- * 再通过 sandbox iframe 的 srcDoc 内联渲染。
+ * 渲染模式：直链 CORS 读取 HTML 内容，再通过 sandbox iframe 的 srcDoc 内联渲染。
  * 直链域名响应带 X-Frame-Options 帧嵌入限制，跨域 iframe 会被浏览器屏蔽（“内容被屏蔽”），
  * 而 srcDoc 不向直链域名发起请求，可绕开该限制且内容仍由直链读取。
  * sandbox 禁脚本；相对路径子资源（css/js/图片）无法解析，建议内联样式。
@@ -507,7 +506,7 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
 }
 
 /**
- * 视频缩略图：通过 /content 代理（带 CORS/Range）加载视频，
+ * 视频缩略图：通过 R2 直链（桶已配 CORS）加载视频，
  * 随机定位到中段一帧并绘制到 canvas 作为缩略图；失败时回退为"视频"占位。
  * 全程 muted + 无 autoplay，不会真正播放。
  */
@@ -517,13 +516,12 @@ const SEEK_TIMEOUT_MS = 8000
 function VideoThumb({ filename }: { filename: string }) {
   const [frame, setFrame] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
-  const [srcIndex, setSrcIndex] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  // 优先 R2 直链（桶已配 CORS 时生效），失败自动回退 worker 代理
+  // 仅 R2 直链（预览全部直链，不使用 worker 代理）
   const sources = fileSources(filename)
-  const src = sources[Math.min(srcIndex, sources.length - 1)]
+  const src = sources[0]
 
   useEffect(() => {
     const video = videoRef.current
@@ -559,12 +557,8 @@ function VideoThumb({ filename }: { filename: string }) {
       } catch { retry() }
     }
     const onError = () => {
-      // 当前源加载失败（如直链未配 CORS 被浏览器拦截）→ 切换下一候选源；否则重试取帧
-      if (srcIndex < sources.length - 1) {
-        setSrcIndex(srcIndex + 1)
-      } else {
-        retry()
-      }
+      // 直链加载失败（如未配 CORS 被浏览器拦截）→ 重试取帧
+      retry()
     }
 
     video.addEventListener('loadedmetadata', onMeta)
@@ -576,7 +570,7 @@ function VideoThumb({ filename }: { filename: string }) {
       video.removeEventListener('error', onError)
       if (timer) window.clearTimeout(timer)
     }
-  }, [filename, frame, srcIndex, sources.length])
+  }, [filename, frame])
 
   if (frame) {
     return <img src={frame} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />

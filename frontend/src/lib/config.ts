@@ -14,5 +14,5 @@ export const displayConfig: DisplayConfig =
 export const apiBase: string =
   typeof window !== 'undefined' && typeof window.API_BASE !== 'undefined' ? window.API_BASE : ''
 
-// R2 公共域名（直链前缀）；未配置时为空，此时内容读取走 worker /content 代理
+// R2 公共域名（直链前缀）；预览内容读取全部走直链
 export const fileBaseUrl: string = displayConfig.fileBaseUrl || ''
