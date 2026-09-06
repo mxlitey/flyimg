@@ -6,5 +6,6 @@ window.DISPLAY_CONFIG = {
   maxStorageSizeMB: 1000,
   allowedTypesDisplay: 'JPG、PNG、GIF、WEBP、SVG',
   renewMaxCount: 3,
-  renewDurations: [60, 180, 360, 720]
+  renewDurations: [60, 180, 360, 720],
+  fileBaseUrl: ''
 };

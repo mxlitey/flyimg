@@ -89,6 +89,7 @@ jobs:
           MAX_STORAGE_SIZE="${{ vars.MAX_STORAGE_SIZE || '1000' }}"
           ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'jpg,png,gif,webp,svg' }}"
           RENEW_OPTIONS="${{ vars.RENEW_OPTIONS || '3;60;180;360;720' }}"
+          R2_DOMAIN="${{ vars.R2_PUBLIC_DOMAIN }}"
 
           # * 表示不限制；否则按扩展名（大写）拼接显示
           if [ "$ALLOWED_TYPES" = "*" ]; then
@@ -109,7 +110,8 @@ jobs:
             maxStorageSizeMB: ${MAX_STORAGE_SIZE},
             allowedTypesDisplay: '${TYPES_DISPLAY}',
             renewMaxCount: ${RENEW_MAX_COUNT},
-            renewDurations: ${RENEW_DURATIONS_JSON}
+            renewDurations: ${RENEW_DURATIONS_JSON},
+            fileBaseUrl: '${R2_DOMAIN}'
           };
           EOF
 
@@ -158,6 +160,21 @@ jobs:
         run: |
           wrangler r2 bucket create flyimg 2>/dev/null || true
           echo "R2 bucket ready"
+
+      - name: Configure R2 Bucket CORS
+        run: |
+          # 允许任意站点只读直连 R2（桶本身为公开只读），
+          # 使前端文本/MD/ZIP 预览与视频取帧可直接使用直链，绕开 worker 代理。
+          # 失败不阻断部署，前端会自动回退到 worker 代理。
+          CORS_BODY='{"rules":[{"allowed":{"origins":["*"],"methods":["GET","HEAD"],"headers":["*"]},"exposeHeaders":["ETag","Content-Length","Accept-Ranges","Content-Range"],"maxAgeSeconds":3600}]}'
+          if curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/flyimg/cors" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$CORS_BODY"; then
+            echo "R2 bucket CORS policy configured (direct-link previews enabled)"
+          else
+            echo "::warning::Failed to configure R2 bucket CORS (frontend will fall back to worker proxy)"
+          fi
 
       - name: Deploy Worker with Assets
         id: deploy-worker

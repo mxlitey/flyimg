@@ -6,6 +6,8 @@ interface DisplayConfig {
   allowedTypesDisplay: string
   renewMaxCount: number
   renewDurations: number[]
+  /** R2 公共域名（直链前缀），部署时注入 */
+  fileBaseUrl?: string
 }
 
 interface Window {

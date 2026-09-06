@@ -23,7 +23,7 @@ import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
 import JSZip from 'jszip'
 import { getFileKind, formatBytes, type FileKind } from '../lib/utils'
-import { fetchFileText, fetchFileArrayBuffer, contentUrl } from '../lib/api'
+import { fetchFileText, fetchFileArrayBuffer, fileSources } from '../lib/api'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -307,8 +307,13 @@ const SEEK_TIMEOUT_MS = 8000
 function VideoThumb({ filename }: { filename: string }) {
   const [frame, setFrame] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [srcIndex, setSrcIndex] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  // 优先 R2 直链（桶已配 CORS 时生效），失败自动回退 worker 代理
+  const sources = fileSources(filename)
+  const src = sources[Math.min(srcIndex, sources.length - 1)]
 
   useEffect(() => {
     const video = videoRef.current
@@ -343,7 +348,14 @@ function VideoThumb({ filename }: { filename: string }) {
         if (timer) window.clearTimeout(timer)
       } catch { retry() }
     }
-    const onError = () => retry()
+    const onError = () => {
+      // 当前源加载失败（如直链未配 CORS 被浏览器拦截）→ 切换下一候选源；否则重试取帧
+      if (srcIndex < sources.length - 1) {
+        setSrcIndex(srcIndex + 1)
+      } else {
+        retry()
+      }
+    }
 
     video.addEventListener('loadedmetadata', onMeta)
     video.addEventListener('seeked', onSeeked)
@@ -353,10 +365,8 @@ function VideoThumb({ filename }: { filename: string }) {
       video.removeEventListener('seeked', onSeeked)
       video.removeEventListener('error', onError)
       if (timer) window.clearTimeout(timer)
-      video.removeAttribute('src')
-      try { video.load() } catch { /* 忽略 */ }
     }
-  }, [filename, frame])
+  }, [filename, frame, srcIndex, sources.length])
 
   if (frame) {
     return <img src={frame} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -378,7 +388,7 @@ function VideoThumb({ filename }: { filename: string }) {
         preload="metadata"
         muted
         playsInline
-        src={contentUrl(filename)}
+        src={src}
         style={{ display: 'none' }}
       />
       <canvas ref={canvasRef} style={{ display: 'none' }} />

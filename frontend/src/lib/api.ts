@@ -1,4 +1,4 @@
-import { apiBase } from './config'
+import { apiBase, fileBaseUrl } from './config'
 
 export interface ImageItem {
   filename: string
@@ -112,24 +112,48 @@ export async function renewFile(filename: string, duration: number, userTag: str
   return resp.json()
 }
 
-// 通过 worker /content 代理读取文件内容（避免依赖 R2 公共域名 CORS）
+// R2 直链（依赖桶已配置 CORS；未配置时浏览器会拦截，见 fetchFileBinary 的回退逻辑）
+export function fileUrl(filename: string): string {
+  return `${fileBaseUrl}/${encodeURIComponent(filename)}`
+}
+
+// 通过 worker /content 代理读取文件内容（兜底方案，不依赖 R2 CORS）
 export function contentUrl(filename: string): string {
   return `${apiBase}/content?filename=${encodeURIComponent(filename)}`
 }
 
+// 候选读取源：R2 直链优先（需桶已配 CORS），worker 代理兜底
+export function fileSources(filename: string): string[] {
+  return fileBaseUrl ? [fileUrl(filename), contentUrl(filename)] : [contentUrl(filename)]
+}
+
+// 内容读取：优先用直链（若 R2 已配 CORS），被浏览器拦截/失败时自动回退到 worker 代理
 async function fetchFileBinary(filename: string): Promise<Response> {
-  const resp = await fetch(contentUrl(filename))
-  if (!resp.ok) {
-    let msg = `读取文件失败 (${resp.status})`
+  const candidates = fileSources(filename)
+  let lastErr: Error | null = null
+
+  for (const url of candidates) {
     try {
+      const resp = await fetch(url, { mode: 'cors' })
+      if (resp.ok) return resp
+      lastErr = new Error(`读取文件失败 (${resp.status})`)
+    } catch {
+      // 直链跨域被拦或网络异常 → 尝试下一个候选源
+      lastErr = new Error('读取文件失败，请检查网络连接')
+    }
+  }
+
+  if (lastErr) {
+    try {
+      const resp = await fetch(contentUrl(filename))
+      if (resp.ok) return resp
       const data = await resp.json()
-      if (data.error) msg = data.error
+      if (data.error) lastErr = new Error(data.error)
     } catch {
       // 保留默认错误信息
     }
-    throw new Error(msg)
   }
-  return resp
+  throw lastErr || new Error('读取文件失败')
 }
 
 export async function fetchFileText(filename: string): Promise<string> {
