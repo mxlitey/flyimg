@@ -86,6 +86,9 @@ export default function UploadPage() {
     qrTimerRef.current = window.setTimeout(() => setQrOpen(false), 150)
   }, [])
 
+  // 触屏无 hover，统一通过点击切换浮窗展开/收起；下载入口在浮窗内
+  const toggleQr = useCallback(() => setQrOpen((prev) => !prev), [])
+
   const downloadQr = useCallback(() => {
     const canvas = qrCanvasRef.current
     if (!canvas) {
@@ -99,6 +102,7 @@ export default function UploadPage() {
     document.body.appendChild(a)
     a.click()
     a.remove()
+    setQrOpen(false)
   }, [toast])
 
   // 二维码图标（UI 库未内置，使用内联 SVG）
@@ -217,9 +221,9 @@ export default function UploadPage() {
                         style={{ position: 'relative', marginLeft: 8, flexShrink: 0 }}
                         onMouseEnter={openQr}
                         onMouseLeave={scheduleCloseQr}
-                        title="生成直链二维码"
+                        title="显示直链二维码"
                       >
-                        <Button size="small" type="primary" icon={qrIcon} style={{ width: QR_ICON_WIDTH, padding: 0 }} onClick={downloadQr} />
+                        <Button size="small" type="primary" icon={qrIcon} style={{ width: QR_ICON_WIDTH, padding: 0 }} onClick={toggleQr} />
                         {qrOpen && (
                           <div
                             onMouseEnter={openQr}
@@ -229,10 +233,21 @@ export default function UploadPage() {
                               background: '#ffffff', borderRadius: 14, padding: 12,
                               boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                              width: 180,
                             }}
                           >
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+                              <button
+                                onClick={() => setQrOpen(false)}
+                                aria-label="关闭二维码"
+                                style={{ cursor: 'pointer', background: 'none', border: 'none', lineHeight: 1, fontSize: '0.85rem', color: '#8a7a66' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
                             <QRCodeSVG value={item.value} size={148} level="M" marginSize={1} />
-                            <span style={{ fontSize: '0.75rem', color: '#8a7a66' }}>手机扫码打开直链 · 可点击图标下载</span>
+                            <span style={{ fontSize: '0.75rem', color: '#8a7a66', textAlign: 'center' }}>手机扫码打开直链</span>
+                            <Button size="small" type="primary" block onClick={downloadQr}>下载二维码图片</Button>
                           </div>
                         )}
                       </div>
