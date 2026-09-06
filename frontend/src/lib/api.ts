@@ -113,8 +113,12 @@ export async function renewFile(filename: string, duration: number, userTag: str
 }
 
 // 通过 worker /content 代理读取文件内容（避免依赖 R2 公共域名 CORS）
+export function contentUrl(filename: string): string {
+  return `${apiBase}/content?filename=${encodeURIComponent(filename)}`
+}
+
 async function fetchFileBinary(filename: string): Promise<Response> {
-  const resp = await fetch(`${apiBase}/content?filename=${encodeURIComponent(filename)}`)
+  const resp = await fetch(contentUrl(filename))
   if (!resp.ok) {
     let msg = `读取文件失败 (${resp.status})`
     try {

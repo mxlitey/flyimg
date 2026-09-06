@@ -576,9 +576,41 @@ async function handleContent(request, env, CONFIG) {
       return jsonResponse({ error: '文件不存在或已过期' }, 404, origin, CONFIG);
     }
 
+    // 支持 Range 请求（媒体 seek / 视频缩略图随机取帧），透传给 R2 返回 206
+    const rangeHeader = request.headers.get('Range');
+    if (rangeHeader) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+      const size = object.size;
+      if (match && (match[1] !== '' || match[2] !== '')) {
+        const start = match[1] !== '' ? parseInt(match[1], 10) : undefined;
+        let end = match[2] !== '' ? parseInt(match[2], 10) : undefined;
+
+        if (start !== undefined && start >= size) {
+          const headers = getResponseHeaders(origin, CONFIG);
+          headers['Content-Range'] = `bytes */${size}`;
+          return new Response(null, { status: 416, headers });
+        }
+        if (end === undefined || end >= size) end = size - 1;
+        if (start === undefined) start = Math.max(size - (end - 0), 0);
+
+        const ranged = await env.R2_BUCKET.get(filename, { range: { offset: start, length: end - start + 1 } });
+        if (!ranged) {
+          return jsonResponse({ error: '文件不存在或已过期' }, 404, origin, CONFIG);
+        }
+
+        const headers = getResponseHeaders(origin, CONFIG);
+        headers['Content-Type'] = object.httpMetadata?.contentType || 'application/octet-stream';
+        headers['Content-Range'] = `bytes ${start}-${end}/${size}`;
+        headers['Accept-Ranges'] = 'bytes';
+        headers['Content-Length'] = String(end - start + 1);
+        return new Response(ranged.body, { status: 206, headers });
+      }
+    }
+
     const headers = getResponseHeaders(origin, CONFIG);
     headers['Content-Type'] = object.httpMetadata?.contentType || 'application/octet-stream';
     headers['Cache-Control'] = object.httpMetadata?.cacheControl || `public, max-age=${CONFIG.CACHE_MAX_AGE}`;
+    headers['Accept-Ranges'] = 'bytes';
     return new Response(object.body, { headers });
 
   } catch (error) {

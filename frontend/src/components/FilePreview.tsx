@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js/lib/core'
@@ -23,7 +23,7 @@ import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
 import JSZip from 'jszip'
 import { getFileKind, formatBytes, type FileKind } from '../lib/utils'
-import { fetchFileText, fetchFileArrayBuffer } from '../lib/api'
+import { fetchFileText, fetchFileArrayBuffer, contentUrl } from '../lib/api'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -297,7 +297,98 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
 }
 
 /**
- * 列表缩略图：图片显示缩略图，其他类型显示类型占位（视频/音频等均为静态，不会自动播放）。
+ * 视频缩略图：通过 /content 代理（带 CORS/Range）加载视频，
+ * 随机定位到中段一帧并绘制到 canvas 作为缩略图；失败时回退为"视频"占位。
+ * 全程 muted + 无 autoplay，不会真正播放。
+ */
+const MAX_SEEK_TRIES = 3
+const SEEK_TIMEOUT_MS = 8000
+
+function VideoThumb({ filename }: { filename: string }) {
+  const [frame, setFrame] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || frame) return
+
+    let tries = 0
+    let timer: number | undefined
+    const fail = () => setFailed(true)
+    const pickTime = () => {
+      const d = video.duration
+      if (!isFinite(d) || d <= 0) { fail(); return }
+      // 取 10% ~ 90% 区间内的随机时间，避开开头黑场/结尾字幕
+      const t = d * 0.1 + Math.random() * d * 0.8
+      try { video.currentTime = Math.max(Math.min(t, d - 0.25), 0) } catch { fail() }
+    }
+    const retry = () => {
+      tries += 1
+      if (tries >= MAX_SEEK_TRIES) { fail(); return }
+      pickTime()
+    }
+    const onMeta = () => { timer = window.setTimeout(fail, SEEK_TIMEOUT_MS); pickTime() }
+    const onSeeked = () => {
+      const canvas = canvasRef.current
+      if (!canvas || !video.videoWidth || !video.videoHeight) { retry(); return }
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { retry(); return }
+      try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        setFrame(canvas.toDataURL('image/jpeg', 0.6))
+        if (timer) window.clearTimeout(timer)
+      } catch { retry() }
+    }
+    const onError = () => retry()
+
+    video.addEventListener('loadedmetadata', onMeta)
+    video.addEventListener('seeked', onSeeked)
+    video.addEventListener('error', onError)
+    return () => {
+      video.removeEventListener('loadedmetadata', onMeta)
+      video.removeEventListener('seeked', onSeeked)
+      video.removeEventListener('error', onError)
+      if (timer) window.clearTimeout(timer)
+      video.removeAttribute('src')
+      try { video.load() } catch { /* 忽略 */ }
+    }
+  }, [filename, frame])
+
+  if (frame) {
+    return <img src={frame} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+  }
+
+  return (
+    <>
+      <div
+        style={{
+          width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: '#f5f0e8', color: '#a08d72', fontSize: '0.875rem', fontWeight: 700, letterSpacing: '0.05em',
+        }}
+      >
+        {failed ? '视频' : '加载中…'}
+      </div>
+      <video
+        ref={videoRef}
+        crossOrigin="anonymous"
+        preload="metadata"
+        muted
+        playsInline
+        src={contentUrl(filename)}
+        style={{ display: 'none' }}
+      />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+    </>
+  )
+}
+
+/**
+ * 列表缩略图：图片显示缩略图，视频随机取帧，其他类型显示类型占位
+ * （视频/音频均为静态，不会自动播放）。
  * 传入 onClick 后支持点击放大预览，悬停显示"点击预览"提示。
  */
 export function FileThumb({ url, filename, onClick }: { url: string; filename: string; onClick?: () => void }) {
@@ -314,6 +405,8 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
         loading="lazy"
         onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
       />
+    ) : kind === 'video' ? (
+      <VideoThumb filename={filename} />
     ) : (
       <div
         style={{
@@ -321,7 +414,7 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
           background: '#f5f0e8', color: '#a08d72', fontSize: '0.875rem', fontWeight: 700, letterSpacing: '0.05em',
         }}
       >
-        {kind === 'video' ? '视频' : kind === 'audio' ? '音频' : kind === 'pdf' ? 'PDF' : kind === 'zip' ? 'ZIP' : kind === 'markdown' ? 'MD' : kind === 'html' ? 'HTML' : kind === 'text' ? 'TXT' : '文件'}
+        {kind === 'audio' ? '音频' : kind === 'pdf' ? 'PDF' : kind === 'zip' ? 'ZIP' : kind === 'markdown' ? 'MD' : kind === 'html' ? 'HTML' : kind === 'text' ? 'TXT' : '文件'}
       </div>
     )
 
