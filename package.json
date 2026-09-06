@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "wrangler": "^3.99.0"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.10.0"
   }
 }
