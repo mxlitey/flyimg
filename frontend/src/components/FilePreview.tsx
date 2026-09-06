@@ -232,17 +232,6 @@ function HtmlPreview({ filename, onSource }: { filename: string; onSource?: (s: 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
         <button
           type="button"
-          onClick={() => setMode('source')}
-          style={{
-            padding: '0.25rem 0.875rem', borderRadius: '9999px', border: '1px solid #d8cec0',
-            background: mode === 'source' ? '#0f766e' : '#fff', color: mode === 'source' ? '#fff' : '#5a4632',
-            fontSize: '0.8125rem', cursor: 'pointer',
-          }}
-        >
-          源码
-        </button>
-        <button
-          type="button"
           onClick={() => setMode('render')}
           style={{
             padding: '0.25rem 0.875rem', borderRadius: '9999px', border: '1px solid #d8cec0',
@@ -251,6 +240,17 @@ function HtmlPreview({ filename, onSource }: { filename: string; onSource?: (s: 
           }}
         >
           渲染
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('source')}
+          style={{
+            padding: '0.25rem 0.875rem', borderRadius: '9999px', border: '1px solid #d8cec0',
+            background: mode === 'source' ? '#0f766e' : '#fff', color: mode === 'source' ? '#fff' : '#5a4632',
+            fontSize: '0.8125rem', cursor: 'pointer',
+          }}
+        >
+          源码
         </button>
       </div>
       {mode === 'source' ? (
@@ -610,8 +610,16 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
       <OtherThumb filename={filename} />
     )
 
+  // 无 onClick（静态展示，如上传成功页）：渲染普通 div，避免出现按钮指针光标
+  if (!onClick) {
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {inner}
+      </div>
+    )
+  }
   return (
-    <button type="button" className="thumb-zoom" onClick={onClick} aria-label="放大预览" tabIndex={onClick ? 0 : -1}>
+    <button type="button" className="thumb-zoom" onClick={onClick} aria-label="放大预览" tabIndex={0}>
       {inner}
       {overlay}
     </button>

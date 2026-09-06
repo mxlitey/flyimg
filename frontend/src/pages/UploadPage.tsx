@@ -3,9 +3,9 @@ import { useOutletContext } from 'react-router-dom'
 import { Button, Card, Icon, Input, Title } from 'animal-island-ui'
 import { uploadFile } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, getFileKind, hoursLeft } from '../lib/utils'
+import { copyText, hoursLeft } from '../lib/utils'
 import { useToast } from '../components/Toast'
-import FilePreview, { OtherThumb } from '../components/FilePreview'
+import { FileThumb } from '../components/FilePreview'
 import type { LayoutContext } from '../components/Layout'
 
 type Phase = 'idle' | 'uploading' | 'done'
@@ -78,10 +78,8 @@ export default function UploadPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // 上传结果文件名与类型（用于决定预览/占位）
+  // 上传结果文件名（缩略图按文件名检测类型）
   const resultFilename = result ? decodeURIComponent(result.url.split('/').pop() || '') : ''
-  const resultKind = result ? getFileKind(resultFilename) : 'other'
-  const resultPreviewable = resultKind === 'image' || resultKind === 'video' || resultKind === 'audio' || resultKind === 'markdown' || resultKind === 'html' || resultKind === 'text'
 
   return (
     <div onPaste={handlePaste}>
@@ -160,20 +158,15 @@ export default function UploadPage() {
 
           {result.url && (
             <div className="mb-6">
-              {/* 预览容器固定为缩略图同款尺寸（200×160），不随预览内容变化；超出部分内部滚动 */}
+              {/* 与"我的文件"缩略图一致：固定 200×160，内容铺满不缩放 */}
               <div
                 style={{
                   width: 200, height: 160, margin: '0 auto',
-                  overflowY: 'auto', overflowX: 'hidden',
-                  background: '#fff', border: '1px solid #eee4d6', borderRadius: '0.5rem',
+                  overflow: 'hidden', background: '#fff',
+                  border: '1px solid #eee4d6', borderRadius: '0.5rem',
                 }}
               >
-                {resultPreviewable ? (
-                  <FilePreview url={result.url} filename={resultFilename} maxHeight={160} />
-                ) : (
-                  // 不支持预览的类型：与"我的文件"缩略图一致，显示后缀占位
-                  <OtherThumb filename={resultFilename} />
-                )}
+                <FileThumb url={result.url} filename={resultFilename} />
               </div>
             </div>
           )}
