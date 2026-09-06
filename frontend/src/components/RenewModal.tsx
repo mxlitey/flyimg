@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Select } from 'animal-island-ui'
-import { formatDurationLabel } from '../lib/utils'
+import { decodeFileName, formatDurationLabel } from '../lib/utils'
 import type { ImageItem, RenewConfig } from '../lib/api'
 import ModalShell from './ModalShell'
 
@@ -60,7 +60,7 @@ export default function RenewModal({
       {target && (
         <div>
           <p
-            title={target.filename}
+            title={decodeFileName(target.filename)}
             style={{
               fontSize: '0.8rem',
               fontFamily: 'monospace',
@@ -71,7 +71,7 @@ export default function RenewModal({
               whiteSpace: 'nowrap',
             }}
           >
-            {target.filename}
+            {decodeFileName(target.filename)}
           </p>
           <p style={{ fontSize: '0.875rem', marginBottom: '0.75rem', color: '#5a4632' }}>
             已续期次数：<b>{target.renew_count || 0}</b> / {isAdmin ? '∞' : renewConfig.max_count}
