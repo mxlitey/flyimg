@@ -46,20 +46,25 @@ body {
   overflow: visible !important;
 }
 
-/* 预览弹窗：手机/电脑统一固定窗口大小，不超出视口，内容区滚动 */
-.animal-modal.preview-modal {
+/* 预览弹窗：手机/电脑统一固定窗口大小，不超出视口，内容区滚动。
+   注意：animal-island-ui 的 Modal 类名是 hash 形式（animal-modal-d0zyM 等），
+   没有字面的 .animal-modal 类，所以选择器必须以 .preview-modal 开头才能命中。 */
+.preview-modal {
   width: min(720px, calc(100vw - 24px)) !important;
   height: min(680px, calc(100vh - 48px)) !important;
 }
-.animal-modal.preview-modal [class*="animal-modalClipped"] {
+.preview-modal [class*="animal-modalClipped"] {
   height: 100%;
   overflow: hidden !important;
 }
-.animal-modal.preview-modal [class*="animal-body"] {
+.preview-modal [class*="animal-body"] {
   flex: 1;
   min-height: 0;
   overflow-y: auto !important;
   overflow-x: hidden !important;
+  /* 组件库默认 align-items:flex-start 会让预览内容收缩到内容宽度（桌面端只占约 2/3，
+     右侧留白）；改为 stretch 让 iframe 撑满弹窗内容区，内容真正居中/铺满。 */
+  align-items: stretch !important;
 }
 
 /* 强制 AI Select 下拉菜单出现在 trigger 右侧（覆盖组件内的自适应定位） */
