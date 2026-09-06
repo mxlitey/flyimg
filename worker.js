@@ -732,7 +732,8 @@ async function handleRenew(request, env, CONFIG) {
       return jsonResponse({ error: '无效的续期时长' }, 400, origin, CONFIG);
     }
 
-    if (!CONFIG.RENEW_DURATIONS.includes(durationMinutes)) {
+    // 时长白名单仅约束普通用户；管理员不受限（可直接设为永不过期，duration=0）
+    if (!isAdmin && !CONFIG.RENEW_DURATIONS.includes(durationMinutes)) {
       return jsonResponse({ error: '不支持的续期时长' }, 400, origin, CONFIG);
     }
 

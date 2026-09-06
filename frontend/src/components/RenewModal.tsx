@@ -39,7 +39,7 @@ export default function RenewModal({
   loading = false,
   isAdmin = false,
 }: RenewModalProps) {
-  // 打开时默认选中第一个时长
+  // 打开时默认选中第一个时长（管理员列表末尾的"永不过期"不作为默认项，避免误设）
   useEffect(() => {
     if (open && renewConfig.durations.length > 0) {
       onDurationChange(String(renewConfig.durations[0]))
@@ -82,7 +82,11 @@ export default function RenewModal({
           <Select
             value={duration}
             onChange={onDurationChange}
-            options={renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) }))}
+            options={[
+              // RENEW_OPTIONS 未配置 0 时，管理员仍可直接设为永不过期
+              ...renewConfig.durations.map((d) => ({ key: String(d), label: formatDurationLabel(d) })),
+              ...(isAdmin && !renewConfig.durations.includes(0) ? [{ key: '0', label: '永不过期' }] : []),
+            ]}
           />
         </div>
       )}
