@@ -112,7 +112,7 @@
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
 | `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
-| `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置，格式：`次数;分钟1;分钟2;...`，0表示永不过期 |
+| `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置，格式：`次数;分钟1;分钟2;...`，0表示长期 |
 | `SITE_DOMAIN` | 空（走代理预览） | 项目域名（前端访问域名），可选。配置后 R2 CORS 仅允许该域名来源，前端在该域名下可**直链预览**（文本/MD/HTML/视频等直接读 R2，不经过 Worker）；不配置则全部内容走 Worker 代理预览。带不带 `https://` 均可 |
 
 > **区别**：Variables 可以在部署日志中显示，适合非敏感配置；Secrets 会被加密隐藏，适合密钥等敏感信息。
@@ -284,7 +284,7 @@ curl -X POST https://your-worker.workers.dev/renew \
 | 参数 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `filename` | String | ✅ | 文件名 |
-| `duration` | Number | ✅ | 续期时长（分钟），0 表示永不过期 |
+| `duration` | Number | ✅ | 续期时长（分钟），0 表示长期 |
 | `user_tag` | String | ✅ | 用户标识（需与上传时一致） |
 
 **响应**：
@@ -357,7 +357,7 @@ curl https://your-worker.workers.dev/stats
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
 | `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*` | 允许的跨域来源，逗号分隔 |
-| `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置：`次数;分钟1;分钟2;...`，0 表示永不过期 |
+| `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置：`次数;分钟1;分钟2;...`，0 表示长期 |
 | `SITE_DOMAIN` | 空（走代理预览） | 项目域名（前端访问域名），可选。配置后 R2 CORS 仅允许该域名来源，前端在该域名下直链预览；不配置则全部内容走 Worker 代理预览。带不带 `https://` 均可 |
 
 ### R2 缓存联动

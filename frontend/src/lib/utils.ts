@@ -16,8 +16,8 @@ export function formatBytes(bytes: number, decimals = 2): string {
 }
 
 export function formatExpireTime(expireAt: string): string {
-  // 永不过期（管理员设为 duration=0，后端写入 2099-12-31）
-  if (new Date(expireAt).getFullYear() >= 2099) return '永不过期'
+  // 长期（管理员设为 duration=0，后端写入 2099-12-31）
+  if (new Date(expireAt).getFullYear() >= 2099) return '长期'
   const diff = new Date(expireAt).getTime() - Date.now()
   if (diff <= 0) return '已过期'
   const hours = Math.floor(diff / 3600000)
@@ -28,7 +28,7 @@ export function formatExpireTime(expireAt: string): string {
 }
 
 export function formatDurationLabel(d: number): string {
-  if (d === 0) return '永不过期'
+  if (d === 0) return '长期'
   const hours = Math.floor(d / 60)
   const mins = d % 60
   if (hours > 0) return mins > 0 ? `${hours}小时${mins}分` : `${hours}小时`
