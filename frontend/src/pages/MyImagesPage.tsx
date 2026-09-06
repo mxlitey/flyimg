@@ -125,9 +125,6 @@ export default function MyImagesPage() {
                     <Button size="small" type="primary" block onClick={() => doCopy(img.url)}>
                       复制
                     </Button>
-                    <Button size="small" block onClick={() => setPreviewTarget(img)}>
-                      预览
-                    </Button>
                     {canRenew && (
                       <Button size="small" type="primary" block onClick={() => openRenew(img)}>
                         续期

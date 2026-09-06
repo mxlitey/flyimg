@@ -23,7 +23,7 @@ import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
 import JSZip from 'jszip'
 import { getFileKind, formatBytes, type FileKind } from '../lib/utils'
-import { fetchFileText, fetchFileArrayBuffer, fileSources } from '../lib/api'
+import { fetchFileText, fetchFileArrayBuffer, fileSources, contentUrl } from '../lib/api'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -198,8 +198,14 @@ function ZipPreview({ filename }: { filename: string }) {
   )
 }
 
-/** HTML 预览：源码 / 渲染 两种模式；渲染模式走 sandbox iframe（禁脚本） */
-function HtmlPreview({ url, filename }: { url: string; filename: string }) {
+/**
+ * HTML 预览：源码 / 渲染 两种模式。
+ * 渲染模式走 worker 同源 /content 代理的 sandbox iframe（禁脚本）：
+ * 与页面同源可绕过 R2 直链域名的帧嵌入限制，且 Content-Type 由存储元数据保证。
+ * 注意：sandbox 禁脚本 + 代理地址，页面内的相对路径子资源（css/js/图片）无法解析，
+ * 内联样式的 HTML 可完整渲染。
+ */
+function HtmlPreview({ filename }: { filename: string }) {
   const [mode, setMode] = useState<'source' | 'render'>('source')
 
   return (
@@ -231,14 +237,42 @@ function HtmlPreview({ url, filename }: { url: string; filename: string }) {
       {mode === 'source' ? (
         <TextContentPreview filename={filename} />
       ) : (
-        <iframe
-          src={url}
-          title="HTML 渲染预览"
-          sandbox=""
-          referrerPolicy="no-referrer"
-          style={{ width: '100%', height: 520, border: '1px solid #e8e0d4', borderRadius: '0.5rem', background: '#fff' }}
-        />
+        <div>
+          <iframe
+            src={contentUrl(filename)}
+            title="HTML 渲染预览"
+            sandbox=""
+            referrerPolicy="no-referrer"
+            style={{ width: '100%', height: 520, border: '1px solid #e8e0d4', borderRadius: '0.5rem', background: '#fff' }}
+          />
+          <p style={{ color: mutedColor, fontSize: '0.75rem', margin: '0.5rem 0 0' }}>
+            渲染为安全沙箱模式（脚本已禁用）；相对路径的子资源可能无法加载，建议使用内联样式。
+          </p>
+        </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * HTML 缩略图：通过同源 /content 代理以小尺寸 iframe 渲染页面预览。
+ * sandbox + pointerEvents:none，保证不执行脚本、不拦截点击。
+ */
+function HtmlThumb({ filename }: { filename: string }) {
+  return (
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#fff', position: 'relative' }}>
+      <iframe
+        src={contentUrl(filename)}
+        title=""
+        sandbox=""
+        referrerPolicy="no-referrer"
+        loading="lazy"
+        style={{
+          width: '400%', height: '400%', border: 'none',
+          transform: 'scale(0.25)', transformOrigin: '0 0',
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   )
 }
@@ -275,7 +309,7 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
   }
 
   if (kind === 'markdown') return <MarkdownPreview filename={filename} />
-  if (kind === 'html') return <HtmlPreview url={url} filename={filename} />
+  if (kind === 'html') return <HtmlPreview filename={filename} />
   if (kind === 'text') return <TextContentPreview filename={filename} />
   if (kind === 'zip') return <ZipPreview filename={filename} />
 
@@ -417,6 +451,8 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
       />
     ) : kind === 'video' ? (
       <VideoThumb filename={filename} />
+    ) : kind === 'html' ? (
+      <HtmlThumb filename={filename} />
     ) : (
       <div
         style={{
@@ -424,7 +460,7 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
           background: '#f5f0e8', color: '#a08d72', fontSize: '0.875rem', fontWeight: 700, letterSpacing: '0.05em',
         }}
       >
-        {kind === 'audio' ? '音频' : kind === 'pdf' ? 'PDF' : kind === 'zip' ? 'ZIP' : kind === 'markdown' ? 'MD' : kind === 'html' ? 'HTML' : kind === 'text' ? 'TXT' : '文件'}
+        {kind === 'audio' ? '音频' : kind === 'pdf' ? 'PDF' : kind === 'zip' ? 'ZIP' : kind === 'markdown' ? 'MD' : kind === 'text' ? 'TXT' : '文件'}
       </div>
     )
 

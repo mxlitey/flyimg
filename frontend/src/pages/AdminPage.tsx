@@ -326,9 +326,6 @@ export default function AdminPage() {
         const r = record as unknown as ImageItem
         return (
           <div className="flex gap-1 flex-wrap">
-            <Button size="small" onClick={() => setPreviewTarget(r)}>
-              预览
-            </Button>
             <Button size="small" onClick={() => doCopy(r.url)}>
               复制
             </Button>

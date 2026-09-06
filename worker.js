@@ -600,17 +600,21 @@ async function handleContent(request, env, CONFIG) {
 
         const headers = getResponseHeaders(origin, CONFIG);
         headers['Content-Type'] = object.httpMetadata?.contentType || 'application/octet-stream';
+        if (filename.toLowerCase().endsWith('.html')) headers['Content-Type'] = 'text/html; charset=utf-8';
         headers['Content-Range'] = `bytes ${start}-${end}/${size}`;
         headers['Accept-Ranges'] = 'bytes';
         headers['Content-Length'] = String(end - start + 1);
+        headers['X-Frame-Options'] = 'SAMEORIGIN';
         return new Response(ranged.body, { status: 206, headers });
       }
     }
 
     const headers = getResponseHeaders(origin, CONFIG);
     headers['Content-Type'] = object.httpMetadata?.contentType || 'application/octet-stream';
+    if (filename.toLowerCase().endsWith('.html')) headers['Content-Type'] = 'text/html; charset=utf-8';
     headers['Cache-Control'] = object.httpMetadata?.cacheControl || `public, max-age=${CONFIG.CACHE_MAX_AGE}`;
     headers['Accept-Ranges'] = 'bytes';
+    headers['X-Frame-Options'] = 'SAMEORIGIN';
     return new Response(object.body, { headers });
 
   } catch (error) {
