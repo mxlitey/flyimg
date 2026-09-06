@@ -582,7 +582,7 @@ async function handleContent(request, env, CONFIG) {
       const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
       const size = object.size;
       if (match && (match[1] !== '' || match[2] !== '')) {
-        const start = match[1] !== '' ? parseInt(match[1], 10) : undefined;
+        let start = match[1] !== '' ? parseInt(match[1], 10) : undefined;
         let end = match[2] !== '' ? parseInt(match[2], 10) : undefined;
 
         if (start !== undefined && start >= size) {
