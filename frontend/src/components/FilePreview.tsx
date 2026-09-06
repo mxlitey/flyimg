@@ -139,13 +139,27 @@ function MarkdownPreview({ filename }: { filename: string }) {
 
 /**
  * HTML 预览：源码 / 渲染 两种模式。
- * 渲染模式优先走 R2 直链 iframe（用户要求直链预览）；未配置直链域名时回退 worker 同源 /content 代理。
- * sandbox 禁脚本 + no-referrer；页面内的相对路径子资源（css/js/图片）可能无法解析，
- * 内联样式的 HTML 可完整渲染。
+ * 渲染模式：直链 CORS 读取 HTML 内容（直链优先，未配置直链或 CORS 失败时回退 worker 代理），
+ * 再通过 sandbox iframe 的 srcDoc 内联渲染。
+ * 直链域名响应带 X-Frame-Options 帧嵌入限制，跨域 iframe 会被浏览器屏蔽（“内容被屏蔽”），
+ * 而 srcDoc 不向直链域名发起请求，可绕开该限制且内容仍由直链读取。
+ * sandbox 禁脚本；相对路径子资源（css/js/图片）无法解析，建议内联样式。
  */
 function HtmlPreview({ filename }: { filename: string }) {
   const [mode, setMode] = useState<'source' | 'render'>('render')
-  const src = fileSources(filename)[0]
+  const [html, setHtml] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setHtml(null)
+    setError(null)
+    if (mode !== 'render') return
+    fetchFileText(filename)
+      .then((text) => { if (!cancelled) setHtml(text) })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'HTML 读取失败') })
+    return () => { cancelled = true }
+  }, [filename, mode])
 
   return (
     <div>
@@ -175,13 +189,16 @@ function HtmlPreview({ filename }: { filename: string }) {
       </div>
       {mode === 'source' ? (
         <TextContentPreview filename={filename} />
+      ) : error ? (
+        <PreviewError message={error} />
+      ) : html === null ? (
+        <PreviewLoading />
       ) : (
         <div>
           <iframe
-            src={src}
             title="HTML 渲染预览"
             sandbox=""
-            referrerPolicy="no-referrer"
+            srcDoc={html}
             style={{ width: '100%', height: 520, border: '1px solid #e8e0d4', borderRadius: '0.5rem', background: '#fff' }}
           />
           <p style={{ color: mutedColor, fontSize: '0.75rem', margin: '0.5rem 0 0' }}>
@@ -194,17 +211,33 @@ function HtmlPreview({ filename }: { filename: string }) {
 }
 
 /**
- * HTML 缩略图：优先 R2 直链 iframe 渲染页面预览（直链优先），未配置直链时回退代理。
- * sandbox + pointerEvents:none，保证不执行脚本、不拦截点击。
+ * HTML 缩略图：直链读取 HTML 内容后以 sandbox iframe srcDoc 渲染页面预览，
+ * 绕开直链域名的帧嵌入限制；读取失败时回退为文档卡片。
+ * pointerEvents:none 保证不拦截点击。
  */
 function HtmlThumb({ filename }: { filename: string }) {
+  const [html, setHtml] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setHtml(null)
+    setFailed(false)
+    fetchFileText(filename)
+      .then((text) => { if (!cancelled) setHtml(text) })
+      .catch(() => { if (!cancelled) setFailed(true) })
+    return () => { cancelled = true }
+  }, [filename])
+
+  if (failed) return <OtherThumb filename={filename} />
+  if (html === null) return <ThumbLoading />
+
   return (
     <div style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#fff', position: 'relative' }}>
       <iframe
-        src={fileSources(filename)[0]}
         title=""
         sandbox=""
-        referrerPolicy="no-referrer"
+        srcDoc={html}
         loading="lazy"
         style={{
           width: '400%', height: '400%', border: 'none',
