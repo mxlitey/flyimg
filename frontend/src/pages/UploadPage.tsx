@@ -264,16 +264,25 @@ export default function UploadPage() {
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', marginTop: '0.5rem' }}>
             支持 {displayConfig.allowedTypesDisplay} 格式，单文件最大 {displayConfig.maxFileSizeMB}MB；文件夹整体上传、保留目录结构，文件夹中未开放类型的文件会被自动跳过
           </p>
-          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
           <input
-            ref={(el) => {
-              folderInputRef.current = el
-              // Chrome 的文件选择器读取的是内容属性（content attribute），仅设置 IDL 属性（el.webkitdirectory=true）
-              // 在部分版本首次点击时仍会弹出单文件选择器，需用 setAttribute 启用目录选择
-              if (el && !el.hasAttribute('webkitdirectory')) el.setAttribute('webkitdirectory', '')
-            }}
+            ref={fileInputRef}
             type="file"
             className="hidden"
+            // 阻止编程 click() 冒泡到 Card（Card onClick 会再次触发 fileInput.click()，导致文件/文件夹选择器先后弹出）
+            onClick={(e) => e.stopPropagation()}
+            onChange={handleFileChange}
+          />
+          <input
+            ref={(el) => { folderInputRef.current = el }}
+            type="file"
+            className="hidden"
+            // 以 JSX 属性（而非 ref 回调）设置 webkitdirectory：
+            // React 在元素插入 DOM 前就会写入该内容属性，规避 Chrome 对插入后才添加该属性的
+            // input 首次点击仍按单文件解析（弹出文件选择器而非文件夹选择器）的问题。
+            // 用展开对象绕过 TS 对未知属性的校验。
+            {...{ webkitdirectory: '' }}
+            // 阻止编程 click() 冒泡到 Card：否则 folderInput.click() 会冒泡触发 Card 的文件选择器，导致先弹文件选择器再弹文件夹选择器
+            onClick={(e) => e.stopPropagation()}
             onChange={handleFolderChange}
           />
           <div className="flex justify-center gap-2" style={{ marginTop: '1rem' }}>
