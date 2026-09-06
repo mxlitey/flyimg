@@ -10,6 +10,13 @@ interface DisplayConfig {
   fileBaseUrl?: string
 }
 
+/// <reference types="vite/client" />
+
+declare module '*?url' {
+  const src: string
+  export default src
+}
+
 interface Window {
   DISPLAY_CONFIG: DisplayConfig
   API_BASE: string

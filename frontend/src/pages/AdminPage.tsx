@@ -442,7 +442,7 @@ export default function AdminPage() {
         isAdmin
       />
 
-      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720}>
+      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720} hideCancel>
         {previewTarget && <FilePreview url={previewTarget.url} filename={previewTarget.filename} />}
       </ModalShell>
 

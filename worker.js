@@ -601,6 +601,7 @@ async function handleContent(request, env, CONFIG) {
         const headers = getResponseHeaders(origin, CONFIG);
         headers['Content-Type'] = object.httpMetadata?.contentType || 'application/octet-stream';
         if (filename.toLowerCase().endsWith('.html')) headers['Content-Type'] = 'text/html; charset=utf-8';
+        if (filename.toLowerCase().endsWith('.pdf')) headers['Content-Type'] = 'application/pdf';
         headers['Content-Range'] = `bytes ${start}-${end}/${size}`;
         headers['Accept-Ranges'] = 'bytes';
         headers['Content-Length'] = String(end - start + 1);
@@ -612,6 +613,7 @@ async function handleContent(request, env, CONFIG) {
     const headers = getResponseHeaders(origin, CONFIG);
     headers['Content-Type'] = object.httpMetadata?.contentType || 'application/octet-stream';
     if (filename.toLowerCase().endsWith('.html')) headers['Content-Type'] = 'text/html; charset=utf-8';
+    if (filename.toLowerCase().endsWith('.pdf')) headers['Content-Type'] = 'application/pdf';
     headers['Cache-Control'] = object.httpMetadata?.cacheControl || `public, max-age=${CONFIG.CACHE_MAX_AGE}`;
     headers['Accept-Ranges'] = 'bytes';
     headers['X-Frame-Options'] = 'SAMEORIGIN';
