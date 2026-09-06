@@ -1,5 +1,18 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Button, Modal } from 'animal-island-ui'
+
+// 滚动条宽度（与当前 body overflow 状态无关，创建临时滚动容器测量），缓存一次即可
+let cachedScrollbarWidth: number | null = null
+function getScrollbarWidth(): number {
+  if (cachedScrollbarWidth === null) {
+    const div = document.createElement('div')
+    div.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:100px;height:100px;overflow:scroll;visibility:hidden;'
+    document.body.appendChild(div)
+    cachedScrollbarWidth = div.offsetWidth - div.clientWidth
+    document.body.removeChild(div)
+  }
+  return cachedScrollbarWidth
+}
 
 interface ModalShellProps {
   open: boolean
@@ -44,6 +57,20 @@ export default function ModalShell({
   width = 380,
   children,
 }: ModalShellProps) {
+  // 弹窗打开时组件库会把 body overflow 置为 hidden，页面滚动条消失、
+  // 可用宽度变宽，导致居中内容（如管理后台表格）右移；关闭时又左移。
+  // 用 padding-right 补偿滚动条宽度，保证弹窗开合时页面布局不跳动。
+  useEffect(() => {
+    if (!open) return
+    const scrollbarWidth = getScrollbarWidth()
+    if (scrollbarWidth <= 0) return
+    const prev = document.body.style.paddingRight
+    document.body.style.paddingRight = `${scrollbarWidth}px`
+    return () => {
+      document.body.style.paddingRight = prev
+    }
+  }, [open])
+
   return (
     <Modal
       open={open}
