@@ -804,20 +804,29 @@ async function getStorageInfo(db, now) {
   };
 }
 
-function addSecurityHeaders(response) {
+function addSecurityHeaders(response, CONFIG) {
   const headers = new Headers(response.headers);
   const contentType = headers.get('Content-Type') || '';
 
   if (contentType.includes('text/html')) {
+    // R2 公共域名（直链前缀）加入 CSP 白名单，直链预览依赖这些能力：
+    // - connect-src：fetch 直链读取 HTML/文本/Markdown 内容（此前仅 'self' 导致
+    //   跨域 fetch 被浏览器在 CORS 之前直接拦截，永远回退代理预览）
+    // - base-uri：HTML 预览注入的 <base> 指向直链域名，否则相对路径子资源解析被拦
+    // - style-src / font-src / media-src：相对路径的 css / 字体 / 音视频按直链解析
+    // 未配置 R2 公共域名时保持原有仅同源策略。
+    const r2 = CONFIG && CONFIG.R2_PUBLIC_DOMAIN ? CONFIG.R2_PUBLIC_DOMAIN : '';
+    const self = `'self'${r2 ? ` ${r2}` : ''}`;
     headers.set('Content-Security-Policy',
       "default-src 'self'; " +
       "script-src 'self'; " +
-      "style-src 'self' 'unsafe-inline'; " +
+      `style-src 'self' 'unsafe-inline'${r2 ? ` ${r2}` : ''}; ` +
       "img-src * data: blob:; " +
-      "font-src 'self'; " +
-      "connect-src 'self'; " +
+      `font-src ${self}; ` +
+      `connect-src ${self}; ` +
+      `media-src ${self}; ` +
       "frame-ancestors 'none'; " +
-      "base-uri 'self'; " +
+      `base-uri ${self}; ` +
       "form-action 'self'"
     );
     headers.set('X-Frame-Options', 'DENY');
@@ -874,7 +883,7 @@ export default {
     // 静态资源由 Cloudflare Assets 提供；SPA 回退（not_found_handling）负责将
     // 未知路径交由前端 react-router 处理（如 /:userTag、/admin）。
     const assetResponse = await env.ASSETS.fetch(request);
-    return addSecurityHeaders(assetResponse);
+    return addSecurityHeaders(assetResponse, CONFIG);
   },
 
   async scheduled(event, env, ctx) {
