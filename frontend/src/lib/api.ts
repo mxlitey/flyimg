@@ -1,4 +1,4 @@
-import { apiBase, fileBaseUrl } from './config'
+import { apiBase, fileBaseUrl, siteDomain } from './config'
 
 export interface ImageItem {
   filename: string
@@ -117,25 +117,39 @@ export function fileUrl(filename: string): string {
   return `${fileBaseUrl}/${encodeURIComponent(filename)}`
 }
 
-// 候选读取源：R2 直链优先，worker 同源代理兜底
+/**
+ * 是否启用直链预览：
+ * - 配置了项目域名（SITE_DOMAIN）且当前页面运行在该域名（或其子域）下 → true，
+ *   R2 CORS 已按该域名配置，fetch/canvas 可直连 R2；
+ * - 未配置项目域名 → false，所有内容读取直接走 worker 同源代理，不尝试直链。
+ */
+export function directLinkEnabled(): boolean {
+  if (!fileBaseUrl || !siteDomain) return false
+  const host = window.location.hostname.toLowerCase()
+  const domain = siteDomain.replace(/^https?:\/\//i, '').split('/')[0].toLowerCase()
+  return host === domain || host.endsWith(`.${domain}`)
+}
+
+// 候选读取源：R2 直链优先（启用时），worker 同源代理兜底
 // （直链未配 CORS 时浏览器会拦截 fetch / canvas 读取，报 "Load failed"，代理不受影响）
 export function fileSources(filename: string): string[] {
   const candidates: string[] = []
-  if (fileBaseUrl) candidates.push(fileUrl(filename))
+  if (directLinkEnabled()) candidates.push(fileUrl(filename))
   candidates.push(`${apiBase}/content?filename=${encodeURIComponent(filename)}`)
   return candidates
 }
 
 /**
- * 内容读取：优先 R2 直链（需桶已配 CORS），
- * 直链被浏览器拦截（未配 CORS）或失败时，自动回退到 worker 同源代理 /content，
- * 保证 HTML/MD/文本源码预览在任何环境下可用。
+ * 内容读取：
+ * - 配置了项目域名且当前页面匹配时，优先 R2 直链（桶 CORS 已按项目域名配置），
+ *   直链异常时回退到 worker 同源代理 /content；
+ * - 未配置项目域名时，直接走代理，不发起直链请求。
  * 返回实际命中的源（直链 / 代理），供界面标记展示。
  */
 export type FileSourceKind = 'direct' | 'proxy'
 
 async function fetchFileBinary(filename: string): Promise<{ resp: Response; source: FileSourceKind }> {
-  if (fileBaseUrl) {
+  if (directLinkEnabled()) {
     try {
       const resp = await fetch(fileUrl(filename), { mode: 'cors' })
       if (resp.ok) return { resp, source: 'direct' }

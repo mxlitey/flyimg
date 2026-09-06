@@ -90,6 +90,7 @@ jobs:
           ALLOWED_TYPES="${{ vars.ALLOWED_TYPES || 'jpg,png,gif,webp,svg' }}"
           RENEW_OPTIONS="${{ vars.RENEW_OPTIONS || '3;60;180;360;720' }}"
           R2_DOMAIN="${{ vars.R2_PUBLIC_DOMAIN }}"
+          SITE_DOMAIN="${{ vars.SITE_DOMAIN }}"
 
           # * 表示不限制；否则按扩展名（大写）拼接显示
           if [ "$ALLOWED_TYPES" = "*" ]; then
@@ -111,7 +112,8 @@ jobs:
             allowedTypesDisplay: '${TYPES_DISPLAY}',
             renewMaxCount: ${RENEW_MAX_COUNT},
             renewDurations: ${RENEW_DURATIONS_JSON},
-            fileBaseUrl: '${R2_DOMAIN}'
+            fileBaseUrl: '${R2_DOMAIN}',
+            siteDomain: '${SITE_DOMAIN}'
           };
           EOF
 
@@ -163,17 +165,29 @@ jobs:
 
       - name: Configure R2 Bucket CORS
         run: |
-          # 允许任意站点只读直连 R2（桶本身为公开只读），
-          # 使前端文本/MD/ZIP 预览与视频取帧可直接使用直链，绕开 worker 代理。
+          # 配置了项目域名（SITE_DOMAIN，可选）时：R2 CORS 仅允许该域名来源，
+          # 前端在项目域名下即可直接读取 R2（直链预览）；自动补 https:// 前缀。
+          # 未配置时：清空 CORS 规则（不允许跨域直连），前端直接走 worker 代理预览。
           # 失败不阻断部署，前端会自动回退到 worker 代理。
-          CORS_BODY='{"rules":[{"allowed":{"origins":["*"],"methods":["GET","HEAD"],"headers":["*"]},"exposeHeaders":["ETag","Content-Length","Accept-Ranges","Content-Range"],"maxAgeSeconds":3600}]}'
+          SITE_DOMAIN="${{ vars.SITE_DOMAIN }}"
+          if [ -n "$SITE_DOMAIN" ]; then
+            case "$SITE_DOMAIN" in
+              http://*|https://*) ORIGIN="$SITE_DOMAIN" ;;
+              *) ORIGIN="https://$SITE_DOMAIN" ;;
+            esac
+            CORS_BODY=$(jq -n --arg origin "$ORIGIN" '{"rules":[{"allowed":{"origins":[$origin],"methods":["GET","HEAD"],"headers":["*"]},"exposeHeaders":["ETag","Content-Length","Accept-Ranges","Content-Range"],"maxAgeSeconds":3600}]}')
+            ACTION="configured (origin: $ORIGIN, direct-link previews enabled)"
+          else
+            CORS_BODY='{"rules":[]}'
+            ACTION="cleared (no SITE_DOMAIN -> worker proxy previews)"
+          fi
           if curl -sf -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/flyimg/cors" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$CORS_BODY"; then
-            echo "R2 bucket CORS policy configured (direct-link previews enabled)"
+            echo "R2 bucket CORS policy $ACTION"
           else
-            echo "::warning::Failed to configure R2 bucket CORS (frontend will fall back to worker proxy)"
+            echo "::warning::Failed to update R2 bucket CORS (frontend will fall back to worker proxy)"
           fi
 
       - name: Deploy Worker with Assets
