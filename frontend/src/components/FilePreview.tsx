@@ -22,12 +22,8 @@ import markdownLang from 'highlight.js/lib/languages/markdown'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
-import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { getFileKind, getFileExt, type FileKind } from '../lib/utils'
-import { fetchFileText, fetchFileArrayBuffer, fileSources } from '../lib/api'
-
-GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+import { fetchFileText, fileSources } from '../lib/api'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -75,6 +71,25 @@ function PreviewLoading() {
 
 function PreviewError({ message }: { message: string }) {
   return <div style={{ textAlign: 'center', padding: '2rem 0', color: '#b91c1c', fontSize: '0.875rem' }}>{message}</div>
+}
+
+/** PDF 不再窗口内预览：展示直链，点击在新标签页打开 */
+function PdfOpenPreview({ url }: { url: string }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+      <p style={{ color: mutedColor, margin: '0 0 0.75rem', fontSize: '0.875rem' }}>
+        PDF 不在窗口内预览，请在新标签页打开
+      </p>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: '#0f766e', fontSize: '0.875rem', fontWeight: 600 }}
+      >
+        打开直链
+      </a>
+    </div>
+  )
 }
 
 /** 文本类预览（txt/log/json/代码等），通过 R2 直链读取 */
@@ -248,136 +263,6 @@ function HtmlThumb({ filename }: { filename: string }) {
   )
 }
 
-/** PDF 缩略图：pdf.js 渲染第 1 页为小尺寸画布（跨平台，含 iOS Safari） */
-function PdfThumb({ filename }: { filename: string }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    let task: ReturnType<typeof getDocument> | null = null
-    fetchFileArrayBuffer(filename)
-      .then((buf) => {
-        task = getDocument({ data: buf })
-        return task.promise
-      })
-      .then((d) => d.getPage(1))
-      .then((page) => {
-        if (cancelled || !canvasRef.current) return
-        const canvas = canvasRef.current
-        const container = canvas.parentElement
-        const cw = container?.clientWidth || 240
-        const ch = container?.clientHeight || 160
-        const vp1 = page.getViewport({ scale: 1 })
-        const scale = Math.min(cw / vp1.width, ch / vp1.height)
-        const vp = page.getViewport({ scale })
-        canvas.width = Math.floor(vp.width)
-        canvas.height = Math.floor(vp.height)
-        return page.render({ canvas, viewport: vp }).promise
-      })
-      .catch(() => {})
-    return () => { cancelled = true; task?.destroy() }
-  }, [filename])
-
-  return (
-    <div
-      style={{
-        width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#eef0f3', overflow: 'hidden',
-      }}
-    >
-      <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-    </div>
-  )
-}
-
-/** PDF 画布渲染器（pdf.js）：分页展示，替代 iframe（iframe 在移动端 Safari 不渲染 PDF） */
-function PdfPreview({ filename }: { filename: string }) {
-  const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
-  const [pageNum, setPageNum] = useState(1)
-  const [error, setError] = useState<string | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const boxRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    let task: ReturnType<typeof getDocument> | null = null
-    setDoc(null)
-    setPageNum(1)
-    setError(null)
-    fetchFileArrayBuffer(filename)
-      .then((buf) => {
-        task = getDocument({ data: buf })
-        return task.promise
-      })
-      .then((d) => { if (!cancelled) setDoc(d) })
-      .catch(() => { if (!cancelled) setError('PDF 解析失败') })
-    return () => { cancelled = true; task?.destroy() }
-  }, [filename])
-
-  useEffect(() => {
-    if (!doc || !canvasRef.current) return
-    let cancelled = false
-    doc.getPage(pageNum)
-      .then((page) => {
-        if (cancelled || !canvasRef.current) return
-        const canvas = canvasRef.current
-        const containerW = boxRef.current?.clientWidth || 640
-        const vp1 = page.getViewport({ scale: 1 })
-        const scale = Math.min(1.5, containerW / vp1.width)
-        const vp = page.getViewport({ scale })
-        canvas.width = Math.floor(vp.width)
-        canvas.height = Math.floor(vp.height)
-        return page.render({ canvas, viewport: vp }).promise
-      })
-      .catch(() => { if (!cancelled) setError('PDF 页面渲染失败') })
-    return () => { cancelled = true }
-  }, [doc, pageNum])
-
-  if (error) return <PreviewError message={error} />
-  if (!doc) return <PreviewLoading />
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-        <button
-          type="button"
-          disabled={pageNum <= 1}
-          onClick={() => setPageNum((p) => p - 1)}
-          style={{
-            padding: '0.25rem 0.75rem', borderRadius: '9999px', border: '1px solid #d8cec0',
-            background: '#fff', color: pageNum <= 1 ? '#c4b8a8' : '#0f766e', fontSize: '0.8125rem', cursor: pageNum <= 1 ? 'default' : 'pointer',
-          }}
-        >
-          上一页
-        </button>
-        <span style={{ fontSize: '0.8125rem', color: '#5a4632' }}>
-          {pageNum} / {doc.numPages}
-        </span>
-        <button
-          type="button"
-          disabled={pageNum >= doc.numPages}
-          onClick={() => setPageNum((p) => p + 1)}
-          style={{
-            padding: '0.25rem 0.75rem', borderRadius: '9999px', border: '1px solid #d8cec0',
-            background: '#fff', color: pageNum >= doc.numPages ? '#c4b8a8' : '#0f766e', fontSize: '0.8125rem', cursor: pageNum >= doc.numPages ? 'default' : 'pointer',
-          }}
-        >
-          下一页
-        </button>
-      </div>
-      <div
-        ref={boxRef}
-        style={{
-          maxHeight: 520, overflow: 'auto', background: '#f2ede4', borderRadius: '0.5rem',
-          padding: '0.75rem', display: 'flex', justifyContent: 'center',
-        }}
-      >
-        <canvas ref={canvasRef} style={{ maxWidth: '100%', height: 'auto', background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.15)' }} />
-      </div>
-    </div>
-  )
-}
-
 /** 缩放容器：内容放大 4 倍再缩回 0.25，模拟整页缩略图效果 */
 function ScaledFrame({ children }: { children: ReactNode }) {
   return (
@@ -482,7 +367,7 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
     return <audio controls preload="metadata" src={url} style={{ width: '100%' }} />
   }
 
-  if (kind === 'pdf') return <PdfPreview filename={filename} />
+  if (kind === 'pdf') return <PdfOpenPreview url={url} />
 
   if (kind === 'markdown') return <MarkdownPreview filename={filename} />
   if (kind === 'html') return <HtmlPreview filename={filename} />
@@ -647,8 +532,6 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
       <VideoThumb filename={filename} />
     ) : kind === 'html' ? (
       <HtmlThumb filename={filename} />
-    ) : kind === 'pdf' ? (
-      <PdfThumb filename={filename} />
     ) : kind === 'markdown' ? (
       <MdThumb filename={filename} />
     ) : kind === 'text' ? (

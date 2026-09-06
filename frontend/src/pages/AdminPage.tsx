@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Card, Input, Loading, Select, Table, Title, type CardColor, type TableColumn } from 'animal-island-ui'
 import { cleanExpired, deleteFile, fetchAllImages, renewFile, type ImageItem, type RenewConfig, type StorageInfo } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
+import { copyText, formatBytes, formatDate, formatExpireTime, getFileKind } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
@@ -268,6 +268,15 @@ export default function AdminPage() {
     toast.show(ok ? '复制成功！' : '复制失败')
   }
 
+  const openFile = (r: ImageItem) => {
+    // PDF 不在窗口内预览，点击后直接在新标签页打开直链
+    if (getFileKind(r.filename) === 'pdf') {
+      window.open(r.url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    setPreviewTarget(r)
+  }
+
   const columns: TableColumn[] = [
     {
       title: <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />,
@@ -286,7 +295,7 @@ export default function AdminPage() {
         const r = record as unknown as ImageItem
         return (
           <div style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', opacity: r.expired ? 0.5 : 1 }}>
-            <FileThumb url={r.url} filename={r.filename} onClick={() => setPreviewTarget(r)} />
+            <FileThumb url={r.url} filename={r.filename} onClick={() => openFile(r)} />
           </div>
         )
       },
@@ -442,7 +451,7 @@ export default function AdminPage() {
         isAdmin
       />
 
-      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720} hideCancel>
+      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720} hideCancel className="preview-modal">
         {previewTarget && <FilePreview url={previewTarget.url} filename={previewTarget.filename} />}
       </ModalShell>
 

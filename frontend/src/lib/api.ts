@@ -133,7 +133,3 @@ async function fetchFileBinary(filename: string): Promise<Response> {
 export async function fetchFileText(filename: string): Promise<string> {
   return (await fetchFileBinary(filename)).text()
 }
-
-export async function fetchFileArrayBuffer(filename: string): Promise<ArrayBuffer> {
-  return (await fetchFileBinary(filename)).arrayBuffer()
-}

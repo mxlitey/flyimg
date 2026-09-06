@@ -17,6 +17,8 @@ interface ModalShellProps {
   confirmDisabled?: boolean
   /** 是否隐藏底部"取消"按钮（纯预览/提示弹窗用，右上角叉号关闭） */
   hideCancel?: boolean
+  /** 透传给 Modal 的附加类名（如固定尺寸的 preview-modal） */
+  className?: string
   width?: number | string
   children?: ReactNode
 }
@@ -38,12 +40,14 @@ export default function ModalShell({
   onConfirm,
   confirmDisabled = false,
   hideCancel = false,
+  className,
   width = 380,
   children,
 }: ModalShellProps) {
   return (
     <Modal
       open={open}
+      className={className}
       title={
         <div style={{ width: '100%' }}>
           <span
@@ -53,6 +57,7 @@ export default function ModalShell({
               lineHeight: 1.4,
               wordBreak: 'break-word',
               overflowWrap: 'anywhere',
+              paddingRight: '2rem',
             }}
           >
             {title}

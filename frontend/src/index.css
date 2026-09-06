@@ -46,6 +46,22 @@ body {
   overflow: visible !important;
 }
 
+/* 预览弹窗：手机/电脑统一固定窗口大小，不超出视口，内容区滚动 */
+.animal-modal.preview-modal {
+  width: min(720px, calc(100vw - 24px)) !important;
+  height: min(680px, calc(100vh - 48px)) !important;
+}
+.animal-modal.preview-modal [class*="animal-modalClipped"] {
+  height: 100%;
+  overflow: hidden !important;
+}
+.animal-modal.preview-modal [class*="animal-body"] {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
 /* 强制 AI Select 下拉菜单出现在 trigger 右侧（覆盖组件内的自适应定位） */
 [class*="animal-dropdown"] {
   left: 100% !important;

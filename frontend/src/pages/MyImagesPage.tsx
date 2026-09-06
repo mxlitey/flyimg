@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Button, Card, Loading, Tag, Title } from 'animal-island-ui'
 import { fetchMyImages, renewFile, type ImageItem, type RenewConfig } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
+import { copyText, formatBytes, formatDate, formatExpireTime, getFileKind } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
@@ -51,6 +51,15 @@ export default function MyImagesPage() {
 
   const openRenew = (img: ImageItem) => {
     setRenewTarget(img)
+  }
+
+  const openFile = (img: ImageItem) => {
+    // PDF 不在窗口内预览，点击后直接在新标签页打开直链
+    if (getFileKind(img.filename) === 'pdf') {
+      window.open(img.url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    setPreviewTarget(img)
   }
 
   const confirmRenew = async () => {
@@ -107,7 +116,7 @@ export default function MyImagesPage() {
             return (
               <Card key={img.filename} className="overflow-hidden" style={{ padding: 0 }}>
                 <div style={{ height: 160 }}>
-                  <FileThumb url={img.url} filename={img.filename} onClick={() => setPreviewTarget(img)} />
+                  <FileThumb url={img.url} filename={img.filename} onClick={() => openFile(img)} />
                 </div>
                 <div style={{ padding: '0.75rem' }}>
                   <p
@@ -138,7 +147,7 @@ export default function MyImagesPage() {
         </div>
       )}
 
-      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720} hideCancel>
+      <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720} hideCancel className="preview-modal">
         {previewTarget && <FilePreview url={previewTarget.url} filename={previewTarget.filename} />}
       </ModalShell>
 
