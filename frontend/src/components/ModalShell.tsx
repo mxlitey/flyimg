@@ -45,7 +45,12 @@ export default function ModalShell({
     <Modal
       open={open}
       title={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '0.75rem', width: '100%', overflow: 'hidden',
+          }}
+        >
           <span
             style={{
               fontSize: 'clamp(0.875rem, 2.6vw, 1.0625rem)',

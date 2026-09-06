@@ -22,11 +22,10 @@ import markdownLang from 'highlight.js/lib/languages/markdown'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
-import JSZip from 'jszip'
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import { getFileKind, getFileExt, formatBytes, type FileKind } from '../lib/utils'
-import { fetchFileText, fetchFileArrayBuffer, fileSources, contentUrl } from '../lib/api'
+import { getFileKind, getFileExt, type FileKind } from '../lib/utils'
+import { fetchFileText, fetchFileArrayBuffer, fileSources } from '../lib/api'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -138,80 +137,15 @@ function MarkdownPreview({ filename }: { filename: string }) {
   )
 }
 
-interface ZipEntryInfo {
-  name: string
-  size: number
-  isDir: boolean
-}
-
-// JSZip 的 uncompressedSize 在内部 _data 上（类型未公开），运行时存在
-function zipEntrySize(entry: JSZip.JSZipObject): number {
-  if (entry.dir) return 0
-  const data = (entry as unknown as { _data?: { uncompressedSize?: number } })._data
-  return data?.uncompressedSize || 0
-}
-
-/** ZIP 内容清单预览（JSZip 读取，不解压） */
-function ZipPreview({ filename }: { filename: string }) {
-  const [entries, setEntries] = useState<ZipEntryInfo[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setEntries(null)
-    setError(null)
-    fetchFileArrayBuffer(filename)
-      .then((buf) => JSZip.loadAsync(buf))
-      .then((zip) => {
-        if (cancelled) return
-        const list: ZipEntryInfo[] = []
-        zip.forEach((name, entry) => {
-          list.push({ name, size: zipEntrySize(entry), isDir: entry.dir })
-        })
-        setEntries(list)
-      })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'ZIP 解析失败') })
-    return () => { cancelled = true }
-  }, [filename])
-
-  if (error) return <PreviewError message={error} />
-  if (entries === null) return <PreviewLoading />
-  if (entries.length === 0) return <div style={{ textAlign: 'center', padding: '2rem 0', color: mutedColor }}>压缩包为空</div>
-  return (
-    <div style={{ maxHeight: 520, overflow: 'auto', border: '1px solid #e8e0d4', borderRadius: '0.5rem' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-        <thead style={{ position: 'sticky', top: 0, background: '#faf7f2' }}>
-          <tr>
-            <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', color: '#5a4632' }}>文件名</th>
-            <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#5a4632', whiteSpace: 'nowrap' }}>大小</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.name} style={{ borderTop: '1px solid #f0eae0' }}>
-              <td style={{ padding: '0.4rem 0.75rem', fontFamily: 'ui-monospace, Menlo, Consolas, monospace', wordBreak: 'break-all' }}>
-                {e.isDir ? '[目录] ' : ''}{e.name}
-              </td>
-              <td style={{ padding: '0.4rem 0.75rem', textAlign: 'right', color: mutedColor, whiteSpace: 'nowrap' }}>
-                {e.isDir ? '—' : formatBytes(e.size)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
 /**
  * HTML 预览：源码 / 渲染 两种模式。
- * 渲染模式走 worker 同源 /content 代理的 sandbox iframe（禁脚本）：
- * 与页面同源可绕过 R2 直链域名的帧嵌入限制，且 Content-Type 由存储元数据保证。
- * 注意：sandbox 禁脚本 + 代理地址，页面内的相对路径子资源（css/js/图片）无法解析，
+ * 渲染模式优先走 R2 直链 iframe（用户要求直链预览）；未配置直链域名时回退 worker 同源 /content 代理。
+ * sandbox 禁脚本 + no-referrer；页面内的相对路径子资源（css/js/图片）可能无法解析，
  * 内联样式的 HTML 可完整渲染。
  */
 function HtmlPreview({ filename }: { filename: string }) {
   const [mode, setMode] = useState<'source' | 'render'>('render')
+  const src = fileSources(filename)[0]
 
   return (
     <div>
@@ -244,7 +178,7 @@ function HtmlPreview({ filename }: { filename: string }) {
       ) : (
         <div>
           <iframe
-            src={contentUrl(filename)}
+            src={src}
             title="HTML 渲染预览"
             sandbox=""
             referrerPolicy="no-referrer"
@@ -260,14 +194,14 @@ function HtmlPreview({ filename }: { filename: string }) {
 }
 
 /**
- * HTML 缩略图：通过同源 /content 代理以小尺寸 iframe 渲染页面预览。
+ * HTML 缩略图：优先 R2 直链 iframe 渲染页面预览（直链优先），未配置直链时回退代理。
  * sandbox + pointerEvents:none，保证不执行脚本、不拦截点击。
  */
 function HtmlThumb({ filename }: { filename: string }) {
   return (
     <div style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#fff', position: 'relative' }}>
       <iframe
-        src={contentUrl(filename)}
+        src={fileSources(filename)[0]}
         title=""
         sandbox=""
         referrerPolicy="no-referrer"
@@ -478,44 +412,6 @@ function TextThumb({ filename }: { filename: string }) {
   )
 }
 
-/** ZIP 缩略图：解析并展示压缩包内文件清单（前 8 项） */
-function ZipThumb({ filename }: { filename: string }) {
-  const [entries, setEntries] = useState<ZipEntryInfo[] | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    setEntries(null)
-    fetchFileArrayBuffer(filename)
-      .then((buf) => JSZip.loadAsync(buf))
-      .then((zip) => {
-        if (cancelled) return
-        const list: ZipEntryInfo[] = []
-        zip.forEach((name, entry) => list.push({ name, size: zipEntrySize(entry), isDir: entry.dir }))
-        setEntries(list)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [filename])
-  if (entries === null) return <ThumbLoading />
-  const shown = entries.slice(0, 8)
-  return (
-    <ScaledFrame>
-      <div style={{ padding: '0.5rem' }}>
-        <div style={{ fontWeight: 700, fontSize: '0.8125rem', marginBottom: '0.25rem', color: '#0f766e' }}>
-          ZIP · {entries.length} 个文件
-        </div>
-        <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.8125rem' }}>
-          {shown.map((e) => (
-            <li key={e.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {e.isDir ? `${e.name}/` : e.name}
-            </li>
-          ))}
-          {entries.length > shown.length && <li>… 还有 {entries.length - shown.length} 个文件</li>}
-        </ul>
-      </div>
-    </ScaledFrame>
-  )
-}
-
 /** 音频缩略图：静态波形条视觉预览 */
 function AudioThumb() {
   const bars = [0.35, 0.65, 0.45, 0.85, 0.55, 0.75, 0.4, 0.6, 0.9, 0.5, 0.7, 0.45, 0.8, 0.55, 0.65, 0.4]
@@ -559,7 +455,6 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
   if (kind === 'markdown') return <MarkdownPreview filename={filename} />
   if (kind === 'html') return <HtmlPreview filename={filename} />
   if (kind === 'text') return <TextContentPreview filename={filename} />
-  if (kind === 'zip') return <ZipPreview filename={filename} />
 
   return (
     <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
@@ -731,8 +626,6 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
       <MdThumb filename={filename} />
     ) : kind === 'text' ? (
       <TextThumb filename={filename} />
-    ) : kind === 'zip' ? (
-      <ZipThumb filename={filename} />
     ) : kind === 'audio' ? (
       <AudioThumb />
     ) : (
