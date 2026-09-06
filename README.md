@@ -113,6 +113,7 @@
 | `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置，格式：`次数;分钟1;分钟2;...`，0表示永不过期 |
+| `SITE_DOMAIN` | 空（走代理预览） | 项目域名（前端访问域名），可选。配置后 R2 CORS 仅允许该域名来源，前端在该域名下可**直链预览**（文本/MD/HTML/视频等直接读 R2，不经过 Worker）；不配置则全部内容走 Worker 代理预览。带不带 `https://` 均可 |
 
 > **区别**：Variables 可以在部署日志中显示，适合非敏感配置；Secrets 会被加密隐藏，适合密钥等敏感信息。
 
@@ -186,6 +187,8 @@ Cloudflare 的免费子域名（如 `*.workers.dev`、`*.r2.dev`）在部分地�
 8. 重新触发部署
 
 > 💡 **注意**：R2 自定义域名设置后，所有已上传的图片仍然可以通过新域名访问，无需重新上传。
+>
+> 💡 **直链预览**：为前端 Worker 绑定自定义域名后，再添加 GitHub Variable `SITE_DOMAIN`（填该域名，如 `img.example.com`，带不带 `https://` 均可）并重新部署，即可启用直链预览（文本/MD/HTML/视频等直接读 R2，不经过 Worker）。不配置则自动走 Worker 代理预览，功能一致。
 
 ### 完整配置示例
 
@@ -355,6 +358,7 @@ curl https://your-worker.workers.dev/stats
 | `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型 |
 | `CORS_ALLOWED_ORIGINS` | `*` | 允许的跨域来源，逗号分隔 |
 | `RENEW_OPTIONS` | `3;60;180;360;720` | 续期配置：`次数;分钟1;分钟2;...`，0 表示永不过期 |
+| `SITE_DOMAIN` | 空（走代理预览） | 项目域名（前端访问域名），可选。配置后 R2 CORS 仅允许该域名来源，前端在该域名下直链预览；不配置则全部内容走 Worker 代理预览。带不带 `https://` 均可 |
 
 ### R2 缓存联动
 
