@@ -52,7 +52,11 @@ const UNSIGNABLE_TYPES = new Set([
   'audio/mp4', 'video/x-msvideo',
 ]);
 
-const API_ROUTES = ['/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images', '/renew', '/content'];
+const API_ROUTES = [
+  '/upload', '/delete', '/clean', '/stats', '/my-images', '/all-images', '/renew', '/content',
+  '/upload-folder/init', '/upload-folder/file', '/upload-folder/finish', '/upload-folder/abort',
+  '/folder-files',
+];
 
 const ROUTE_METHODS = {
   '/upload': 'POST',
@@ -63,6 +67,11 @@ const ROUTE_METHODS = {
   '/all-images': 'GET',
   '/renew': 'POST',
   '/content': 'GET',
+  '/upload-folder/init': 'POST',
+  '/upload-folder/file': 'POST',
+  '/upload-folder/finish': 'POST',
+  '/upload-folder/abort': 'POST',
+  '/folder-files': 'GET',
 };
 
 const STATIC_EXTENSIONS = new Set([
@@ -72,6 +81,8 @@ const STATIC_EXTENSIONS = new Set([
 
 const RATE_LIMITS = {
   upload: { windowMs: 60000, max: 30 },
+  // 文件夹上传逐文件请求，放宽限流（每个文件一次请求）
+  folderUpload: { windowMs: 60000, max: 600 },
   api: { windowMs: 60000, max: 120 },
 };
 
@@ -153,6 +164,56 @@ function generateFileName(mimeType, originalExt, originalName) {
   return base
     ? `${timestamp}-${random1}-${base}.${ext}`
     : `${timestamp}-${random1}.${ext}`;
+}
+
+/**
+ * 校验 R2 key（支持文件夹路径）：
+ * 允许 '/' 分隔的路径，拒绝控制字符、反斜杠、前导/末尾斜杠、空段、. 与 .. 段。
+ */
+function isValidKey(key) {
+  if (!key || typeof key !== 'string') return false;
+  if (key.length > 512) return false;
+  if (/[\x00-\x1f\x7f\\]/.test(key)) return false;
+  if (key.startsWith('/') || key.endsWith('/')) return false;
+  return key.split('/').every(seg => seg && seg !== '.' && seg !== '..');
+}
+
+/** 文件夹唯一 key（沿用单文件命名的 时间戳-随机 风格，显示名与 R2 一致） */
+function generateFolderKey() {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${timestamp}-${random}`;
+}
+
+/** 类型白名单：按扩展名校验（与单文件上传一致），未开放类型直接跳过该文件 */
+function isTypeAllowed(filename, CONFIG) {
+  if (CONFIG.UNLIMITED_TYPES) return true;
+  const dotIndex = filename.lastIndexOf('.');
+  const ext = dotIndex > 0 ? filename.slice(dotIndex + 1).toLowerCase() : '';
+  return !!(ext && CONFIG.ALLOWED_TYPES.includes(ext));
+}
+
+/** 当前已用存储（单文件 + 有效文件夹），用于剩余空间校验与统计 */
+async function getUsedStorage(db, now) {
+  const isoNow = now || new Date().toISOString();
+  const fileResult = await db.prepare(
+    'SELECT COALESCE(SUM(size), 0) as s FROM images WHERE expire_at > ?'
+  ).bind(isoNow).first();
+  const folderResult = await db.prepare(
+    "SELECT COALESCE(SUM(size), 0) as s FROM folders WHERE expire_at > ? AND status = ?"
+  ).bind(isoNow, 'active').first();
+  return (fileResult.s || 0) + (folderResult.s || 0);
+}
+
+/** 按 key 前缀删除 R2 对象（文件夹整体删除 / 清理用），自动翻页 */
+async function deleteR2Prefix(env, prefix) {
+  const searchPrefix = `${prefix}/`;
+  let cursor;
+  do {
+    const listed = await env.R2_BUCKET.list({ prefix: searchPrefix, cursor });
+    await Promise.allSettled(listed.objects.map(o => env.R2_BUCKET.delete(o.key)));
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -383,11 +444,9 @@ async function handleUpload(request, env, CONFIG) {
         return jsonResponse({ error: '文件内容与声明类型不匹配' }, 400, origin, CONFIG);
       }
 
-      const storageCheck = await env.DB.prepare(
-        'SELECT COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
-      ).bind(new Date().toISOString()).first();
+      const usedStorage = await getUsedStorage(env.DB);
 
-      if (storageCheck.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
+      if (usedStorage + file.size > CONFIG.MAX_STORAGE_SIZE) {
         return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
       }
 
@@ -423,11 +482,9 @@ async function handleUpload(request, env, CONFIG) {
       return jsonResponse({ error: '文件内容与声明类型不匹配，可能存在安全风险' }, 400, origin, CONFIG);
     }
 
-    const storageCheck = await env.DB.prepare(
-      'SELECT COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
-    ).bind(new Date().toISOString()).first();
+    const usedStorage = await getUsedStorage(env.DB);
 
-    if (storageCheck.totalSize >= CONFIG.MAX_STORAGE_SIZE) {
+    if (usedStorage + file.size > CONFIG.MAX_STORAGE_SIZE) {
       return jsonResponse({ error: '存储空间已满，请等待过期文件自动清理后再试', storageFull: true }, 429, origin, CONFIG);
     }
 
@@ -464,6 +521,249 @@ async function handleUpload(request, env, CONFIG) {
   }
 }
 
+/**
+ * 文件夹上传 - 初始化：校验总大小不超项目剩余空间，生成文件夹 key（改名），
+ * 状态 uploading，随后逐文件上传，全部完成后 finish 转为 active。
+ */
+async function handleUploadFolderInit(request, env, CONFIG) {
+  const origin = request.headers.get('Origin');
+
+  try {
+    const body = await request.json();
+    const userTag = sanitizeUserTag(body.user_tag);
+    const totalSize = parseInt(body.total_size, 10);
+    const fileCount = parseInt(body.file_count, 10);
+    const name = String(body.name || '').slice(0, 200);
+
+    if (!isFinite(totalSize) || totalSize <= 0) {
+      return jsonResponse({ error: '无效的文件夹大小' }, 400, origin, CONFIG);
+    }
+    if (!isFinite(fileCount) || fileCount <= 0 || fileCount > 5000) {
+      return jsonResponse({ error: '无效的文件数量' }, 400, origin, CONFIG);
+    }
+
+    const usedStorage = await getUsedStorage(env.DB);
+    if (usedStorage + totalSize > CONFIG.MAX_STORAGE_SIZE) {
+      return jsonResponse({
+        error: '文件夹总大小超过项目剩余空间，请等待过期文件自动清理后再试',
+        storageFull: true,
+      }, 429, origin, CONFIG);
+    }
+
+    const folderKey = generateFolderKey();
+    const timestamp = Date.now();
+    const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
+
+    await env.DB.prepare(
+      'INSERT INTO folders (folder_key, name, user_tag, size, file_count, renew_count, expire_at, created_at, status) VALUES (?, ?, ?, 0, 0, 0, ?, ?, ?)'
+    ).bind(folderKey, name, userTag, expireAt, new Date(timestamp).toISOString(), 'uploading').run();
+
+    return jsonResponse({ success: true, folder_key: folderKey, expire_at: expireAt }, 200, origin, CONFIG);
+  } catch (error) {
+    console.error('Upload folder init failed:', error);
+    return jsonResponse({ error: '初始化上传失败，请稍后重试' }, 500, origin, CONFIG);
+  }
+}
+
+/**
+ * 文件夹上传 - 逐文件：每个文件一次请求（规避单请求 100MB 上限）。
+ * 类型白名单未开放的文件跳过（返回 skipped，不影响整体），其余写入 R2 与 folder_files。
+ */
+async function handleUploadFolderFile(request, env, CONFIG) {
+  const origin = request.headers.get('Origin');
+
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    const folderKey = String(formData.get('folder_key') || '');
+    const relPath = String(formData.get('rel_path') || '');
+    const userTag = sanitizeUserTag(formData.get('user_tag'));
+
+    if (!file) {
+      return jsonResponse({ error: '缺少文件' }, 400, origin, CONFIG);
+    }
+    if (!isValidKey(folderKey)) {
+      return jsonResponse({ error: '无效的文件夹' }, 400, origin, CONFIG);
+    }
+    if (!isValidKey(relPath)) {
+      return jsonResponse({ error: '无效的文件路径' }, 400, origin, CONFIG);
+    }
+
+    const folder = await env.DB.prepare('SELECT folder_key, status, user_tag FROM folders WHERE folder_key = ?')
+      .bind(folderKey).first();
+    if (!folder) {
+      return jsonResponse({ error: '文件夹不存在或已过期' }, 404, origin, CONFIG);
+    }
+    if (folder.status !== 'uploading') {
+      return jsonResponse({ error: '文件夹状态异常，无法继续上传' }, 400, origin, CONFIG);
+    }
+    if (folder.user_tag !== userTag) {
+      return jsonResponse({ error: '无权限操作此文件夹' }, 403, origin, CONFIG);
+    }
+
+    // 类型白名单：未开放的类型跳过该文件，不导致整体失败
+    if (!isTypeAllowed(relPath, CONFIG)) {
+      return jsonResponse({ success: false, skipped: true, message: `跳过不支持的类型：${relPath}` }, 200, origin, CONFIG);
+    }
+
+    const mimeType = file.type || 'application/octet-stream';
+
+    if (mimeType === 'image/svg+xml') {
+      const svgText = await file.text();
+      if (!verifySvgContent(svgText)) {
+        return jsonResponse({ success: false, skipped: true, message: `SVG包含不安全内容，已跳过：${relPath}` }, 200, origin, CONFIG);
+      }
+    }
+
+    if (!await verifyFileSignature(file, mimeType)) {
+      return jsonResponse({ success: false, skipped: true, message: `文件内容与声明类型不匹配，已跳过：${relPath}` }, 200, origin, CONFIG);
+    }
+
+    const r2Key = `${folderKey}/${relPath}`;
+    try {
+      await env.R2_BUCKET.put(r2Key, file.stream(), {
+        httpMetadata: { contentType: mimeType, cacheControl: `public, max-age=${CONFIG.CACHE_MAX_AGE}` },
+        customMetadata: { userTag },
+      });
+    } catch {
+      return jsonResponse({ error: '文件存储失败，请稍后重试' }, 500, origin, CONFIG);
+    }
+
+    await env.DB.prepare(
+      'INSERT INTO folder_files (folder_key, rel_path, size) VALUES (?, ?, ?) ON CONFLICT(folder_key, rel_path) DO UPDATE SET size = excluded.size'
+    ).bind(folderKey, relPath, file.size).run();
+
+    return jsonResponse({ success: true, rel_path: relPath, size: file.size }, 200, origin, CONFIG);
+  } catch (error) {
+    console.error('Upload folder file failed:', error);
+    return jsonResponse({ error: '上传失败，请稍后重试' }, 500, origin, CONFIG);
+  }
+}
+
+/** 文件夹上传 - 完成：汇总实际大小/文件数，标记 active，记录根目录 index.html 作为整体预览入口 */
+async function handleUploadFolderFinish(request, env, CONFIG) {
+  const origin = request.headers.get('Origin');
+
+  try {
+    const body = await request.json();
+    const folderKey = String(body.folder_key || '');
+    const userTag = sanitizeUserTag(body.user_tag);
+
+    if (!isValidKey(folderKey)) {
+      return jsonResponse({ error: '无效的文件夹' }, 400, origin, CONFIG);
+    }
+
+    const folder = await env.DB.prepare('SELECT folder_key, user_tag, expire_at FROM folders WHERE folder_key = ?')
+      .bind(folderKey).first();
+    if (!folder) {
+      return jsonResponse({ error: '文件夹不存在' }, 404, origin, CONFIG);
+    }
+    if (folder.user_tag !== userTag) {
+      return jsonResponse({ error: '无权限操作此文件夹' }, 403, origin, CONFIG);
+    }
+
+    const agg = await env.DB.prepare(
+      'SELECT COALESCE(SUM(size), 0) as totalSize, COUNT(*) as fileCount FROM folder_files WHERE folder_key = ?'
+    ).bind(folderKey).first();
+
+    const rootIndex = await env.DB.prepare(
+      "SELECT rel_path FROM folder_files WHERE folder_key = ? AND rel_path IN ('index.html', 'index.htm') ORDER BY rel_path LIMIT 1"
+    ).bind(folderKey).first();
+
+    await env.DB.prepare(
+      'UPDATE folders SET status = ?, size = ?, file_count = ?, index_path = ? WHERE folder_key = ?'
+    ).bind('active', agg.totalSize, agg.fileCount, rootIndex ? rootIndex.rel_path : null, folderKey).run();
+
+    const indexUrl = rootIndex
+      ? `${CONFIG.R2_PUBLIC_DOMAIN}/${folderKey}/${rootIndex.rel_path}`
+      : null;
+
+    return jsonResponse({
+      success: true,
+      folder_key: folderKey,
+      size: agg.totalSize,
+      file_count: agg.fileCount,
+      index_url: indexUrl,
+      expire_at: folder.expire_at,
+      expire_hours: CONFIG.EXPIRE_HOURS,
+    }, 200, origin, CONFIG);
+  } catch (error) {
+    console.error('Upload folder finish failed:', error);
+    return jsonResponse({ error: '完成上传失败，请稍后重试' }, 500, origin, CONFIG);
+  }
+}
+
+/** 文件夹上传 - 中止：删除已上传部分（R2 前缀 + DB 记录） */
+async function handleUploadFolderAbort(request, env, CONFIG) {
+  const origin = request.headers.get('Origin');
+
+  try {
+    const body = await request.json();
+    const folderKey = String(body.folder_key || '');
+    const userTag = sanitizeUserTag(body.user_tag);
+
+    if (!isValidKey(folderKey)) {
+      return jsonResponse({ error: '无效的文件夹' }, 400, origin, CONFIG);
+    }
+
+    const folder = await env.DB.prepare('SELECT folder_key, user_tag FROM folders WHERE folder_key = ?')
+      .bind(folderKey).first();
+    if (folder && folder.user_tag !== userTag) {
+      return jsonResponse({ error: '无权限操作此文件夹' }, 403, origin, CONFIG);
+    }
+
+    await deleteR2Prefix(env, folderKey);
+    await env.DB.prepare('DELETE FROM folder_files WHERE folder_key = ?').bind(folderKey).run();
+    await env.DB.prepare('DELETE FROM folders WHERE folder_key = ?').bind(folderKey).run();
+
+    return jsonResponse({ success: true, message: '已取消上传' }, 200, origin, CONFIG);
+  } catch (error) {
+    console.error('Upload folder abort failed:', error);
+    return jsonResponse({ error: '取消失败，请稍后重试' }, 500, origin, CONFIG);
+  }
+}
+
+/** 文件夹成员列表：返回相对路径与直链，供文件夹整体预览（文件树）使用 */
+async function handleFolderFiles(request, env, CONFIG) {
+  const origin = request.headers.get('Origin');
+
+  try {
+    const url = new URL(request.url);
+    const folderKey = url.searchParams.get('folder_key') || '';
+    const userTag = sanitizeUserTag(url.searchParams.get('user_tag'));
+
+    if (!isValidKey(folderKey)) {
+      return jsonResponse({ error: '无效的文件夹' }, 400, origin, CONFIG);
+    }
+
+    const folder = await env.DB.prepare(
+      "SELECT folder_key, user_tag FROM folders WHERE folder_key = ? AND status = ?"
+    ).bind(folderKey, 'active').first();
+    if (!folder) {
+      return jsonResponse({ error: '文件夹不存在或已过期' }, 404, origin, CONFIG);
+    }
+    if (folder.user_tag !== userTag) {
+      return jsonResponse({ error: '无权限查看此文件夹' }, 403, origin, CONFIG);
+    }
+
+    const { results } = await env.DB.prepare(
+      'SELECT rel_path, size FROM folder_files WHERE folder_key = ? ORDER BY rel_path'
+    ).bind(folderKey).all();
+
+    return jsonResponse({
+      success: true,
+      folder_key: folderKey,
+      files: results.map(f => ({
+        ...f,
+        url: `${CONFIG.R2_PUBLIC_DOMAIN}/${folderKey}/${f.rel_path}`,
+      })),
+    }, 200, origin, CONFIG);
+  } catch (error) {
+    console.error('Folder files failed:', error);
+    return jsonResponse({ error: '查询失败，请稍后重试' }, 500, origin, CONFIG);
+  }
+}
+
 async function handleMyImages(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
   const url = new URL(request.url);
@@ -480,12 +780,18 @@ async function handleMyImages(request, env, CONFIG) {
     const { limit, offset } = parsePagination(url);
 
     const countResult = await env.DB.prepare(
-      'SELECT COUNT(*) as total FROM images WHERE user_tag = ? AND expire_at > ?'
-    ).bind(userTag, now).first();
+      `SELECT
+        (SELECT COUNT(*) FROM images WHERE user_tag = ? AND expire_at > ?) +
+        (SELECT COUNT(*) FROM folders WHERE user_tag = ? AND expire_at > ? AND status = ?) as total`
+    ).bind(userTag, now, userTag, now, 'active').first();
 
     const { results } = await env.DB.prepare(
       'SELECT filename, size, renew_count, expire_at, created_at FROM images WHERE user_tag = ? AND expire_at > ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
     ).bind(userTag, now, limit, offset).all();
+
+    const { results: folderResults } = await env.DB.prepare(
+      'SELECT folder_key, name, size, file_count, index_path, renew_count, expire_at, created_at FROM folders WHERE user_tag = ? AND expire_at > ? AND status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    ).bind(userTag, now, 'active', limit, offset).all();
 
     return jsonResponse({
       success: true,
@@ -494,11 +800,25 @@ async function handleMyImages(request, env, CONFIG) {
         url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
         expired: false,
       })),
+      folders: folderResults.map(f => ({
+        kind: 'folder',
+        folder_key: f.folder_key,
+        filename: f.folder_key,
+        name: f.name,
+        size: f.size,
+        file_count: f.file_count,
+        index_path: f.index_path,
+        url: f.index_path ? `${CONFIG.R2_PUBLIC_DOMAIN}/${f.folder_key}/${f.index_path}` : '',
+        renew_count: f.renew_count,
+        expire_at: f.expire_at,
+        created_at: f.created_at,
+        expired: false,
+      })),
       pagination: {
         total: countResult.total,
         limit,
         offset,
-        hasMore: offset + results.length < countResult.total,
+        hasMore: offset + results.length + folderResults.length < countResult.total,
       },
       renew_config: { max_count: CONFIG.MAX_RENEW_COUNT, durations: CONFIG.RENEW_DURATIONS },
     }, 200, origin, CONFIG);
@@ -529,6 +849,10 @@ async function handleAllImages(request, env, CONFIG) {
       'SELECT filename, size, user_tag, renew_count, expire_at, created_at FROM images ORDER BY created_at DESC LIMIT ? OFFSET ?'
     ).bind(limit, offset).all();
 
+    const { results: folderResults } = await env.DB.prepare(
+      'SELECT folder_key, name, size, file_count, index_path, user_tag, renew_count, expire_at, created_at FROM folders WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    ).bind('active', limit, offset).all();
+
     const storageInfo = await getStorageInfo(env.DB, now);
 
     return jsonResponse({
@@ -538,11 +862,26 @@ async function handleAllImages(request, env, CONFIG) {
         url: `${CONFIG.R2_PUBLIC_DOMAIN}/${img.filename}`,
         expired: img.expire_at < now,
       })),
+      folders: folderResults.map(f => ({
+        kind: 'folder',
+        folder_key: f.folder_key,
+        filename: f.folder_key,
+        name: f.name,
+        size: f.size,
+        file_count: f.file_count,
+        index_path: f.index_path,
+        user_tag: f.user_tag,
+        url: f.index_path ? `${CONFIG.R2_PUBLIC_DOMAIN}/${f.folder_key}/${f.index_path}` : '',
+        renew_count: f.renew_count,
+        expire_at: f.expire_at,
+        created_at: f.created_at,
+        expired: f.expire_at < now,
+      })),
       pagination: {
-        total: countResult.total,
+        total: countResult.total + folderResults.length,
         limit,
         offset,
-        hasMore: offset + results.length < countResult.total,
+        hasMore: offset + results.length + folderResults.length < countResult.total + folderResults.length,
       },
       renew_config: { max_count: CONFIG.MAX_RENEW_COUNT, durations: CONFIG.RENEW_DURATIONS },
       storage_info: {
@@ -567,7 +906,7 @@ async function handleContent(request, env, CONFIG) {
     const url = new URL(request.url);
     const filename = url.searchParams.get('filename') || '';
 
-    if (!filename || !/^[^\x00-\x1f\x7f\/\\]+$/.test(filename)) {
+    if (!filename || !isValidKey(filename)) {
       return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
     }
 
@@ -645,8 +984,18 @@ async function handleDelete(request, env, CONFIG) {
       return jsonResponse({ error: '缺少filename参数' }, 400, origin, CONFIG);
     }
 
-    if (!/^[^\x00-\x1f\x7f\/\\]+$/.test(filename)) {
+    if (!isValidKey(filename)) {
       return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
+    }
+
+    // 文件夹整体删除：按前缀删 R2 + 两张表记录
+    const folder = await env.DB.prepare('SELECT folder_key FROM folders WHERE folder_key = ?')
+      .bind(filename).first();
+    if (folder) {
+      await deleteR2Prefix(env, folder.folder_key);
+      await env.DB.prepare('DELETE FROM folder_files WHERE folder_key = ?').bind(folder.folder_key).run();
+      await env.DB.prepare('DELETE FROM folders WHERE folder_key = ?').bind(folder.folder_key).run();
+      return jsonResponse({ success: true, message: '文件夹已删除' }, 200, origin, CONFIG);
     }
 
     try { await env.R2_BUCKET.delete(filename); } catch {}
@@ -719,7 +1068,7 @@ async function handleRenew(request, env, CONFIG) {
       return jsonResponse({ error: '缺少filename参数' }, 400, origin, CONFIG);
     }
 
-    if (!/^[^\x00-\x1f\x7f\/\\]+$/.test(filename)) {
+    if (!isValidKey(filename)) {
       return jsonResponse({ error: '无效的文件名' }, 400, origin, CONFIG);
     }
 
@@ -735,6 +1084,37 @@ async function handleRenew(request, env, CONFIG) {
     // 时长白名单仅约束普通用户；管理员不受限（可直接设为长期，duration=0）
     if (!isAdmin && !CONFIG.RENEW_DURATIONS.includes(durationMinutes)) {
       return jsonResponse({ error: '不支持的续期时长' }, 400, origin, CONFIG);
+    }
+
+    // 文件夹整体续期：更新文件夹过期时间，成员随之整体延续
+    const folder = await env.DB.prepare('SELECT folder_key, user_tag, renew_count FROM folders WHERE folder_key = ?')
+      .bind(filename).first();
+    if (folder) {
+      if (!isAdmin) {
+        const userTag = sanitizeUserTag(user_tag);
+        if (userTag !== folder.user_tag) {
+          return jsonResponse({ error: '无权限续期此文件夹' }, 403, origin, CONFIG);
+        }
+        if (folder.renew_count >= CONFIG.MAX_RENEW_COUNT) {
+          return jsonResponse({ error: `续期次数已达上限（${CONFIG.MAX_RENEW_COUNT}次）` }, 400, origin, CONFIG);
+        }
+      }
+
+      const newExpireAt = durationMinutes === 0
+        ? PERMANENT_EXPIRY
+        : new Date(Date.now() + durationMinutes * 60000).toISOString();
+
+      await env.DB.prepare(
+        'UPDATE folders SET expire_at = ?, renew_count = renew_count + 1 WHERE folder_key = ?'
+      ).bind(newExpireAt, filename).run();
+
+      return jsonResponse({
+        success: true,
+        message: durationMinutes === 0 ? '已设为长期' : `续期成功，新过期时间：${newExpireAt}`,
+        expire_at: newExpireAt,
+        renew_count: folder.renew_count + 1,
+        max_renew_count: CONFIG.MAX_RENEW_COUNT,
+      }, 200, origin, CONFIG);
     }
 
     const image = await env.DB.prepare(
@@ -784,12 +1164,38 @@ async function cleanupExpiredFiles(env) {
     'SELECT filename FROM images WHERE expire_at <= ?'
   ).bind(now).all();
 
-  if (results.length === 0) return 0;
+  if (results.length > 0) {
+    await Promise.allSettled(results.map(r => env.R2_BUCKET.delete(r.filename)));
+    await env.DB.prepare('DELETE FROM images WHERE expire_at <= ?').bind(now).run();
+  }
 
-  await Promise.allSettled(results.map(r => env.R2_BUCKET.delete(r.filename)));
-  await env.DB.prepare('DELETE FROM images WHERE expire_at <= ?').bind(now).run();
+  // 过期文件夹：按前缀删除成员对象与记录
+  const { results: expiredFolders } = await env.DB.prepare(
+    'SELECT folder_key FROM folders WHERE expire_at <= ?'
+  ).bind(now).all();
+  for (const f of expiredFolders) {
+    await deleteR2Prefix(env, f.folder_key);
+  }
+  if (expiredFolders.length > 0) {
+    await env.DB.prepare('DELETE FROM folders WHERE expire_at <= ?').bind(now).run();
+  }
 
-  return results.length;
+  // 挂起的上传（1 小时未完成）：清理残留
+  const staleTime = new Date(Date.now() - 3600000).toISOString();
+  const { results: staleFolders } = await env.DB.prepare(
+    'SELECT folder_key FROM folders WHERE status = ? AND created_at < ?'
+  ).bind('uploading', staleTime).all();
+  for (const f of staleFolders) {
+    await deleteR2Prefix(env, f.folder_key);
+  }
+  if (staleFolders.length > 0) {
+    await env.DB.prepare('DELETE FROM folders WHERE status = ? AND created_at < ?').bind('uploading', staleTime).run();
+  }
+
+  // 兜底清理孤立成员记录
+  await env.DB.prepare('DELETE FROM folder_files WHERE folder_key NOT IN (SELECT folder_key FROM folders)').run();
+
+  return results.length + expiredFolders.length + staleFolders.length;
 }
 
 async function getStorageInfo(db, now) {
@@ -797,11 +1203,14 @@ async function getStorageInfo(db, now) {
   const result = await db.prepare(
     'SELECT COUNT(*) as totalFiles, COALESCE(SUM(size), 0) as totalSize FROM images WHERE expire_at > ?'
   ).bind(isoNow).first();
+  const folderResult = await db.prepare(
+    "SELECT COUNT(*) as totalFolders, COALESCE(SUM(size), 0) as totalSize FROM folders WHERE expire_at > ? AND status = ?"
+  ).bind(isoNow, 'active').first();
 
   return {
-    totalFiles: result.totalFiles,
-    totalSize: result.totalSize,
-    formattedSize: formatBytes(result.totalSize),
+    totalFiles: (result.totalFiles || 0) + (folderResult.totalFolders || 0),
+    totalSize: (result.totalSize || 0) + (folderResult.totalSize || 0),
+    formattedSize: formatBytes((result.totalSize || 0) + (folderResult.totalSize || 0)),
   };
 }
 
@@ -854,7 +1263,9 @@ export default {
       }
 
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
-      const rateLimitType = url.pathname === '/upload' ? 'upload' : 'api';
+      const rateLimitType = url.pathname === '/upload'
+        ? 'upload'
+        : url.pathname.startsWith('/upload-folder/') ? 'folderUpload' : 'api';
       if (!checkRateLimit(clientIp, rateLimitType)) {
         return jsonResponse({ error: '请求过于频繁，请稍后再试' }, 429, origin, CONFIG);
       }
@@ -870,6 +1281,11 @@ export default {
       }
 
       if (url.pathname === '/upload') return handleUpload(request, env, CONFIG);
+      if (url.pathname === '/upload-folder/init') return handleUploadFolderInit(request, env, CONFIG);
+      if (url.pathname === '/upload-folder/file') return handleUploadFolderFile(request, env, CONFIG);
+      if (url.pathname === '/upload-folder/finish') return handleUploadFolderFinish(request, env, CONFIG);
+      if (url.pathname === '/upload-folder/abort') return handleUploadFolderAbort(request, env, CONFIG);
+      if (url.pathname === '/folder-files') return handleFolderFiles(request, env, CONFIG);
       if (url.pathname === '/my-images') return handleMyImages(request, env, CONFIG);
       if (url.pathname === '/all-images') return handleAllImages(request, env, CONFIG);
       if (url.pathname === '/delete') return handleDelete(request, env, CONFIG);

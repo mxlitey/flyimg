@@ -22,8 +22,8 @@ import markdownLang from 'highlight.js/lib/languages/markdown'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
-import { getFileKind, getFileExt, type FileKind } from '../lib/utils'
-import { fetchFileText, fetchFileTextWithSource, fileSources, fileUrl, type FileSourceKind } from '../lib/api'
+import { getFileKind, getFileExt, formatBytes, type FileKind } from '../lib/utils'
+import { fetchFileText, fetchFileTextWithSource, fetchFolderFiles, fileSources, fileUrl, type FileSourceKind, type FolderFileItem, type FolderItem } from '../lib/api'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -326,6 +326,40 @@ function HtmlThumb({ filename }: { filename: string }) {
         }}
       />
     </div>
+  )
+}
+
+/** 文件夹缩略图：有根目录 index.html 时渲染整页缩略图；否则显示文件夹图标卡片 */
+export function FolderThumb({ folder, onClick }: { folder: FolderItem; onClick?: () => void }) {
+  const inner = folder.index_path ? (
+    <HtmlThumb filename={`${folder.folder_key}/${folder.index_path}`} />
+  ) : (
+    <div
+      style={{
+        width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(160deg, #fbf8f3, #efe7db)',
+      }}
+    >
+      <svg viewBox="0 0 48 48" width="42" height="42" aria-hidden="true">
+        <path d="M6 12a4 4 0 0 1 4-4h9.6l4 4H38a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V12z" fill="#fbbf24" />
+        <path d="M6 14a2 2 0 0 1 2-2h11l4 4h19a2 2 0 0 1 2 2v0a2 2 0 0 0-2-2H23l-4-4H8a2 2 0 0 0-2 2v0z" fill="#f59e0b" />
+        <rect x="4" y="26" width="40" height="2" rx="1" fill="#b45309" opacity="0.25" />
+      </svg>
+    </div>
+  )
+
+  if (!onClick) {
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {inner}
+      </div>
+    )
+  }
+  return (
+    <button type="button" className="thumb-zoom" onClick={onClick} aria-label="预览文件夹" tabIndex={0}>
+      {inner}
+      <span className="thumb-zoom-overlay">点击预览</span>
+    </button>
   )
 }
 
@@ -637,5 +671,144 @@ export function FileThumb({ url, filename, onClick }: { url: string; filename: s
       {inner}
       {overlay}
     </button>
+  )
+}
+
+/** 文件夹成员文件树：按目录层级缩进，点击某个文件在文件夹预览内打开 */
+function FolderTree({ folderKey, userTag, onOpen }: {
+  folderKey: string
+  userTag: string
+  onOpen: (f: FolderFileItem) => void
+}) {
+  const [files, setFiles] = useState<FolderFileItem[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setFiles(null)
+    setError(null)
+    fetchFolderFiles(folderKey, userTag)
+      .then((list) => { if (!cancelled) setFiles(list) })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : '读取失败') })
+    return () => { cancelled = true }
+  }, [folderKey, userTag])
+
+  if (error) return <PreviewError message={error} />
+  if (files === null) return <PreviewLoading />
+
+  if (files.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: mutedColor, fontSize: '0.875rem' }}>
+        文件夹中没有文件
+      </div>
+    )
+  }
+
+  const sorted = [...files].sort((a, b) => a.rel_path.localeCompare(b.rel_path))
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', border: '1px solid #e8e0d4', borderRadius: '0.5rem', background: '#faf7f2' }}>
+      {sorted.map((f) => {
+        const depth = f.rel_path.split('/').length - 1
+        const isRootHtml = depth === 0 && /^index\.html?$/i.test(f.rel_path)
+        return (
+          <button
+            key={f.rel_path}
+            type="button"
+            onClick={() => onOpen(f)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%',
+              padding: `0.45rem 0.75rem 0.45rem ${0.75 + depth * 1.25}rem`,
+              border: 'none', borderBottom: '1px solid #efe7db', background: 'transparent',
+              cursor: 'pointer', textAlign: 'left', fontSize: '0.8125rem', color: '#5a4632',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+            }}
+          >
+            <span
+              style={{
+                flexShrink: 0, width: 6, height: 6, borderRadius: '50%',
+                background: isRootHtml ? '#0f766e' : '#d0c4b2',
+              }}
+            />
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {f.rel_path}
+            </span>
+            <span style={{ flexShrink: 0, fontSize: '0.7rem', color: mutedColor }}>{formatBytes(f.size)}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * 文件夹整体预览：
+ * - 有根目录 index.html 时默认渲染首页（沙箱 iframe + base 解析相对资源），可切换到文件树；
+ * - 无 index.html 时直接展示文件树；
+ * - 文件树中点击单个文件，在预览内打开该文件的常规预览（带返回）。
+ */
+export function FolderPreview({ folder, userTag = '' }: { folder: FolderItem; userTag?: string }) {
+  const [mode, setMode] = useState<'render' | 'tree'>('render')
+  const [active, setActive] = useState<FolderFileItem | null>(null)
+
+  const hasIndex = !!folder.index_path
+  const indexFilename = hasIndex ? `${folder.folder_key}/${folder.index_path}` : ''
+
+  if (active) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setActive(null)}
+            style={{
+              padding: '0.25rem 0.875rem', borderRadius: '9999px', border: '1px solid #d8cec0',
+              background: '#fff', color: '#5a4632', fontSize: '0.8125rem', cursor: 'pointer',
+            }}
+          >
+            ← 返回文件树
+          </button>
+          <span style={{ fontSize: '0.75rem', color: mutedColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>
+            {active.rel_path}
+          </span>
+        </div>
+        <FilePreview url={active.url} filename={active.rel_path} />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {hasIndex && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setMode('render')}
+            style={{
+              padding: '0.25rem 0.875rem', borderRadius: '9999px', border: '1px solid #d8cec0',
+              background: mode === 'render' ? '#0f766e' : '#fff', color: mode === 'render' ? '#fff' : '#5a4632',
+              fontSize: '0.8125rem', cursor: 'pointer',
+            }}
+          >
+            渲染首页
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('tree')}
+            style={{
+              padding: '0.25rem 0.875rem', borderRadius: '9999px', border: '1px solid #d8cec0',
+              background: mode === 'tree' ? '#0f766e' : '#fff', color: mode === 'tree' ? '#fff' : '#5a4632',
+              fontSize: '0.8125rem', cursor: 'pointer',
+            }}
+          >
+            文件树
+          </button>
+        </div>
+      )}
+      {hasIndex && mode === 'render' ? (
+        <HtmlPreview filename={indexFilename} />
+      ) : (
+        <FolderTree folderKey={folder.folder_key} userTag={userTag} onOpen={setActive} />
+      )}
+    </div>
   )
 }

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Button, Card, Input, Loading, Select, Table, Title, type CardColor, type TableColumn } from 'animal-island-ui'
-import { cleanExpired, deleteFile, fetchAllImages, renewFile, type ImageItem, type RenewConfig, type StorageInfo } from '../lib/api'
+import { cleanExpired, deleteFile, fetchAllImages, renewFile, type FolderItem, type ImageItem, type RenewConfig, type StorageInfo } from '../lib/api'
 import { displayConfig } from '../lib/config'
 import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
-import FilePreview, { FileThumb } from '../components/FilePreview'
+import FilePreview, { FileThumb, FolderPreview, FolderThumb } from '../components/FilePreview'
 
 interface ConfirmState {
   title: string
@@ -63,10 +63,10 @@ export default function AdminPage() {
   const [userFilter, setUserFilter] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  const [renewTarget, setRenewTarget] = useState<ImageItem | null>(null)
+  const [renewTarget, setRenewTarget] = useState<(ImageItem | FolderItem) | null>(null)
   const [renewDuration, setRenewDuration] = useState('')
   const [renewing, setRenewing] = useState(false)
-  const [previewTarget, setPreviewTarget] = useState<ImageItem | null>(null)
+  const [previewTarget, setPreviewTarget] = useState<(ImageItem | FolderItem) | null>(null)
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
 
@@ -102,7 +102,7 @@ export default function AdminPage() {
         toast.show('密钥无效，请重新登录')
         return
       }
-      setImages(data.images || [])
+      setImages([...(data.folders || []) as ImageItem[], ...(data.images || [])])
       if (data.renew_config) setRenewConfig(data.renew_config)
       if (data.storage_info) setStorage(data.storage_info)
     } catch {
@@ -288,9 +288,14 @@ export default function AdminPage() {
       width: 64,
       render: (_v, record) => {
         const r = record as unknown as ImageItem
+        const isFolder = (r as FolderItem).kind === 'folder'
         return (
           <div style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', opacity: r.expired ? 0.5 : 1 }}>
-            <FileThumb url={r.url} filename={r.filename} onClick={() => openFile(r)} />
+            {isFolder ? (
+              <FolderThumb folder={r as FolderItem} onClick={() => openFile(r)} />
+            ) : (
+              <FileThumb url={r.url} filename={r.filename} onClick={() => openFile(r)} />
+            )}
           </div>
         )
       },
@@ -299,13 +304,14 @@ export default function AdminPage() {
       title: '文件信息',
       render: (_v, record) => {
         const r = record as unknown as ImageItem
+        const isFolder = (r as FolderItem).kind === 'folder'
         return (
           <div style={{ minWidth: 0 }}>
             <p title={r.filename} style={{ fontSize: '0.8rem', fontFamily: 'monospace', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#5a4632' }}>
               {r.filename}
             </p>
             <p style={{ fontSize: '0.7rem', color: '#8a7a66', margin: '2px 0' }}>
-              用户: {r.user_tag} · {formatBytes(r.size)} · {formatDate(r.created_at)}
+              用户: {r.user_tag} · {isFolder && `${(r as FolderItem).file_count} 个文件 · `}{formatBytes(r.size)} · {formatDate(r.created_at)}
             </p>
           </div>
         )
@@ -447,7 +453,12 @@ export default function AdminPage() {
       />
 
       <ModalShell open={!!previewTarget} title={previewTarget?.filename || ''} onClose={() => setPreviewTarget(null)} width={720} hideCancel className="preview-modal">
-        {previewTarget && <FilePreview url={previewTarget.url} filename={previewTarget.filename} />}
+        {previewTarget &&
+          ((previewTarget as FolderItem).kind === 'folder' ? (
+            <FolderPreview folder={previewTarget as FolderItem} userTag={previewTarget.user_tag || ''} />
+          ) : (
+            <FilePreview url={previewTarget.url} filename={previewTarget.filename} />
+          ))}
       </ModalShell>
 
       <ModalShell
