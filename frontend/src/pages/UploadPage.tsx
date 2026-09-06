@@ -3,9 +3,9 @@ import { useOutletContext } from 'react-router-dom'
 import { Button, Card, Icon, Input, Title } from 'animal-island-ui'
 import { uploadFile } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, hoursLeft } from '../lib/utils'
+import { copyText, getFileKind, hoursLeft } from '../lib/utils'
 import { useToast } from '../components/Toast'
-import FilePreview from '../components/FilePreview'
+import FilePreview, { OtherThumb } from '../components/FilePreview'
 import type { LayoutContext } from '../components/Layout'
 
 type Phase = 'idle' | 'uploading' | 'done'
@@ -154,9 +154,23 @@ export default function UploadPage() {
           </div>
 
           {result.url && (
-            <div className="mb-6">
-              <FilePreview url={result.url} filename={decodeURIComponent(result.url.split('/').pop() || '')} maxHeight={320} />
-            </div>
+            (() => {
+              const filename = decodeURIComponent(result.url.split('/').pop() || '')
+              const kind = getFileKind(filename)
+              const previewable = kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'markdown' || kind === 'html' || kind === 'text'
+              return previewable ? (
+                <div className="mb-6">
+                  <FilePreview url={result.url} filename={filename} maxHeight={320} />
+                </div>
+              ) : (
+                // 不支持预览的类型：与"我的文件"缩略图一致，显示后缀占位
+                <div className="mb-6">
+                  <div style={{ width: 200, height: 150, margin: '0 auto' }}>
+                    <OtherThumb filename={filename} />
+                  </div>
+                </div>
+              )
+            })()
           )}
 
           <div className="space-y-3" style={{ textAlign: 'left' }}>

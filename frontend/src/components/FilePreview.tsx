@@ -554,7 +554,7 @@ function VideoThumb({ filename }: { filename: string }) {
 }
 
 /** 其他类型缩略图：文档卡片（扩展名徽标），非纯占位 */
-function OtherThumb({ filename }: { filename: string }) {
+export function OtherThumb({ filename }: { filename: string }) {
   const ext = (getFileExt(filename) || 'file').toUpperCase().slice(0, 5)
   return (
     <div
