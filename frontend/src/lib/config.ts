@@ -16,3 +16,6 @@ export const apiBase: string =
 
 // R2 公共域名（直链前缀）；预览内容读取全部走直链
 export const fileBaseUrl: string = displayConfig.fileBaseUrl || ''
+
+// 项目域名（前端部署域名，可选）；配置后 R2 CORS 仅允许该域名直连，前端启用直链预览
+export const siteDomain: string = displayConfig.siteDomain || ''

@@ -7,5 +7,6 @@ window.DISPLAY_CONFIG = {
   allowedTypesDisplay: 'JPG、PNG、GIF、WEBP、SVG',
   renewMaxCount: 3,
   renewDurations: [60, 180, 360, 720],
-  fileBaseUrl: ''
+  fileBaseUrl: '',
+  siteDomain: ''
 };

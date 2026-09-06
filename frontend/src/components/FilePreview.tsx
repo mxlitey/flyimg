@@ -196,12 +196,15 @@ function MarkdownPreview({ filename, onSource }: { filename: string; onSource?: 
 /**
  * 给 HTML 源码注入 <base>，让源码里的相对路径子资源（css/图片/字体等）
  * 相对该文件的直链解析；源码已有 <base> 时不注入，避免覆盖作者设置。
+ * 同时注入居中样式：窄页面在 iframe 中默认靠左、右侧大片留白，
+ * 这里让页面内容在 iframe 内水平居中，左右留白一致。
  */
 function htmlWithBase(html: string, filename: string): string {
   if (/<base\s/i.test(html)) return html
   const baseTag = `<base href="${fileUrl(filename)}">`
+  const centerStyle = `<style>html{display:flex;justify-content:center}html,body{margin:0;padding:0}</style>`
   const head = html.match(/<head([^>]*)>/i)
-  return head ? html.replace(head[0], `${head[0]}${baseTag}`) : `${baseTag}${html}`
+  return head ? html.replace(head[0], `${head[0]}${baseTag}${centerStyle}`) : `${baseTag}${centerStyle}${html}`
 }
 
 /**
