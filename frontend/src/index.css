@@ -60,11 +60,23 @@ body {
 .preview-modal [class*="animal-body"] {
   flex: 1;
   min-height: 0;
+  /* 保留可滚动作为兜底（图片/视频等非自适应内容超高时）；HTML/文本/Markdown
+     会撑满高度并内部滚动，弹窗内容区自身不再滚动，避免双层滚动条 */
   overflow-y: auto !important;
   overflow-x: hidden !important;
+  display: flex;
+  flex-direction: column;
   /* 组件库默认 align-items:flex-start 会让预览内容收缩到内容宽度（桌面端只占约 2/3，
      右侧留白）；改为 stretch 让 iframe 撑满弹窗内容区，内容真正居中/铺满。 */
   align-items: stretch !important;
+}
+/* 预览内容根节点撑满弹窗内容区剩余高度：HTML iframe / 文本 / Markdown 在内部滚动，
+   弹窗内容区自身不滚动，避免双层滚动条 */
+.preview-modal .preview-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 强制 AI Select 下拉菜单出现在 trigger 右侧（覆盖组件内的自适应定位） */

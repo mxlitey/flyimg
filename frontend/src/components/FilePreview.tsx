@@ -125,7 +125,7 @@ function MediaPreview({ filename, kind, maxHeight = 520, onSource }: {
       <video
         {...commonProps}
         playsInline
-        style={{ width: '100%', maxHeight: heightStyle, borderRadius: '0.5rem', background: '#000' }}
+        style={{ flexShrink: 0, width: '100%', maxHeight: heightStyle, borderRadius: '0.5rem', background: '#000' }}
       />
     )
   }
@@ -150,16 +150,18 @@ function TextContentPreview({ filename, onSource }: { filename: string; onSource
   if (error) return <PreviewError message={error} />
   if (content === null) return <PreviewLoading />
   return (
-    <pre
-      style={{
-        margin: 0, padding: '1rem', maxHeight: 520, overflow: 'auto',
-        background: '#faf7f2', borderRadius: '0.5rem',
-        fontSize: '0.8125rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-      }}
-    >
-      {content}
-    </pre>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <pre
+        style={{
+          flex: 1, minHeight: 0, margin: 0, padding: '1rem', overflow: 'auto',
+          background: '#faf7f2', borderRadius: '0.5rem',
+          fontSize: '0.8125rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        }}
+      >
+        {content}
+      </pre>
+    </div>
   )
 }
 
@@ -185,11 +187,13 @@ function MarkdownPreview({ filename, onSource }: { filename: string; onSource?: 
   if (error) return <PreviewError message={error} />
   if (html === null) return <PreviewLoading />
   return (
-    <div
-      className="markdown-body"
-      style={{ maxHeight: 520, overflow: 'auto', padding: '0 0.25rem', fontSize: '0.875rem', lineHeight: 1.7 }}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div
+        className="markdown-body"
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 0.25rem', fontSize: '0.875rem', lineHeight: 1.7 }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </div>
   )
 }
 
@@ -236,8 +240,8 @@ function HtmlPreview({ filename, onSource }: { filename: string; onSource?: (s: 
   }, [filename, mode, onSource])
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexShrink: 0 }}>
         <button
           type="button"
           onClick={() => setMode('render')}
@@ -268,14 +272,16 @@ function HtmlPreview({ filename, onSource }: { filename: string; onSource?: (s: 
       ) : html === null ? (
         <PreviewLoading />
       ) : (
-        <div>
-          <iframe
-            title="HTML 渲染预览"
-            sandbox=""
-            srcDoc={htmlWithBase(html, filename)}
-            style={{ width: '100%', height: 520, border: '1px solid #e8e0d4', borderRadius: '0.5rem', background: '#fff' }}
-          />
-          <p style={{ color: mutedColor, fontSize: '0.75rem', margin: '0.5rem 0 0' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            <iframe
+              title="HTML 渲染预览"
+              sandbox=""
+              srcDoc={htmlWithBase(html, filename)}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: '1px solid #e8e0d4', borderRadius: '0.5rem', background: '#fff' }}
+            />
+          </div>
+          <p style={{ color: mutedColor, fontSize: '0.75rem', margin: '0.5rem 0 0', flexShrink: 0 }}>
             渲染为安全沙箱模式（脚本已禁用）；相对路径的 css/图片 已按直链解析。
           </p>
         </div>
@@ -420,7 +426,7 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
   let content: ReactNode
   if (kind === 'image') {
     content = (
-      <div style={{ textAlign: 'center', maxHeight: heightStyle, overflow: 'hidden' }}>
+      <div style={{ flexShrink: 0, textAlign: 'center', maxHeight: heightStyle, overflow: 'hidden' }}>
         <img src={url} alt={filename} style={{ maxWidth: '100%', maxHeight: heightStyle, objectFit: 'contain', borderRadius: '0.75rem' }} />
       </div>
     )
@@ -454,7 +460,7 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
   }
 
   return (
-    <div>
+    <div className="preview-root">
       {source && <SourceBadge source={source} />}
       {content}
     </div>
