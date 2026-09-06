@@ -58,3 +58,13 @@ export async function copyText(text: string): Promise<boolean> {
     }
   }
 }
+
+// 文件名显示解码：将转义保存的文件名中的中文百分号序列还原为可读中文
+// 例如 %E5%9B%BE%E7%89%87 → 图片；纯 ASCII 或旧文件名（含原始中文）原样返回
+export function decodeFileName(name: string): string {
+  try {
+    return decodeURIComponent(name)
+  } catch {
+    return name
+  }
+}
