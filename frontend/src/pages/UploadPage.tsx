@@ -158,12 +158,12 @@ export default function UploadPage() {
 
           {result.url && (
             <div className="mb-6">
-              {/* 与"我的文件"缩略图一致：固定 200×160，内容铺满不缩放 */}
+              {/* 恢复之前的大预览尺寸：卡片全宽，最高 320px，内容铺满不缩放 */}
               <div
                 style={{
-                  width: 200, height: 160, margin: '0 auto',
+                  width: '100%', height: '20rem', margin: '0 auto',
                   overflow: 'hidden', background: '#fff',
-                  border: '1px solid #eee4d6', borderRadius: '0.5rem',
+                  border: '1px solid #eee4d6', borderRadius: '0.75rem',
                 }}
               >
                 <FileThumb url={result.url} filename={resultFilename} />
