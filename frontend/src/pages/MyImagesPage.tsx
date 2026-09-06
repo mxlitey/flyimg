@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Button, Card, Loading, Tag, Title } from 'animal-island-ui'
 import { fetchMyImages, renewFile, type ImageItem, type RenewConfig } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, decodeFileName, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
+import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import RenewModal from '../components/RenewModal'
 
@@ -112,10 +112,10 @@ export default function MyImagesPage() {
                 />
                 <div style={{ padding: '0.75rem' }}>
                   <p
-                    title={decodeFileName(img.filename)}
+                    title={img.filename}
                     style={{ fontSize: '0.8rem', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#5a4632', margin: '0 0 4px' }}
                   >
-                    {decodeFileName(img.filename)}
+                    {img.filename}
                   </p>
                   <p style={{ fontSize: '0.7rem', color: '#8a7a66', margin: '2px 0' }}>{formatDate(img.created_at)}</p>
                   <p style={{ fontSize: '0.7rem', color: '#8a7a66', margin: '2px 0' }}>

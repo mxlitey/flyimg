@@ -37,15 +37,22 @@ export function hoursLeft(expireAt: string): number {
   return Math.round((new Date(expireAt).getTime() - Date.now()) / 3600000)
 }
 
+// 复制前将文本中的 http(s) URL 内的中文百分号转义为 ASCII，
+// 使复制出去的链接可安全粘贴（避免微信等 IM 截断中文）；存储用文件名不受影响
+export function encodeUrlInText(text: string): string {
+  return text.replace(/https?:\/\/[^\s"'<>()]+/g, (m) => encodeURI(m))
+}
+
 // 复制文本到剪贴板，带 execCommand 回退
 export async function copyText(text: string): Promise<boolean> {
+  const encoded = encodeUrlInText(text)
   try {
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(encoded)
     return true
   } catch {
     try {
       const ta = document.createElement('textarea')
-      ta.value = text
+      ta.value = encoded
       ta.style.position = 'fixed'
       ta.style.opacity = '0'
       document.body.appendChild(ta)
@@ -56,15 +63,5 @@ export async function copyText(text: string): Promise<boolean> {
     } catch {
       return false
     }
-  }
-}
-
-// 文件名显示解码：将转义保存的文件名中的中文百分号序列还原为可读中文
-// 例如 %E5%9B%BE%E7%89%87 → 图片；纯 ASCII 或旧文件名（含原始中文）原样返回
-export function decodeFileName(name: string): string {
-  try {
-    return decodeURIComponent(name)
-  } catch {
-    return name
   }
 }

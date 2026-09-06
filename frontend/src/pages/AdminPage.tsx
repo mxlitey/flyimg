@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Card, Input, Loading, Select, Table, Title, type CardColor, type TableColumn } from 'animal-island-ui'
 import { cleanExpired, deleteFile, fetchAllImages, renewFile, type ImageItem, type RenewConfig, type StorageInfo } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, decodeFileName, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
+import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
@@ -146,7 +146,7 @@ export default function AdminPage() {
   const doDelete = (filename: string) => {
     setConfirm({
       title: '删除文件',
-      message: `确定要删除「${decodeFileName(filename)}」吗？此操作不可恢复。`,
+      message: `确定要删除「${filename}」吗？此操作不可恢复。`,
       confirmLabel: '删除',
       danger: true,
       onOk: async () => {
@@ -299,8 +299,8 @@ export default function AdminPage() {
         const r = record as unknown as ImageItem
         return (
           <div style={{ minWidth: 0 }}>
-            <p title={decodeFileName(r.filename)} style={{ fontSize: '0.8rem', fontFamily: 'monospace', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#5a4632' }}>
-              {decodeFileName(r.filename)}
+            <p title={r.filename} style={{ fontSize: '0.8rem', fontFamily: 'monospace', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#5a4632' }}>
+              {r.filename}
             </p>
             <p style={{ fontSize: '0.7rem', color: '#8a7a66', margin: '2px 0' }}>
               用户: {r.user_tag} · {formatBytes(r.size)} · {formatDate(r.created_at)}
