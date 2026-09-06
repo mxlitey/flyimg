@@ -194,18 +194,18 @@ function MarkdownPreview({ filename, onSource }: { filename: string; onSource?: 
 }
 
 /**
- * 给 HTML 源码注入 <base> 与居中样式：
+ * 给 HTML 源码注入 <base> 与页面样式：
  * - <base>：让源码里的相对路径子资源（css/图片/字体等）相对该文件的直链解析；
  *   源码已有 <base> 时不再注入，避免覆盖作者设置。
- * - 居中样式：窄页面在 iframe 中默认靠左、右侧大片留白，
- *   这里让页面内容在 iframe 内水平居中，左右留白一致
- *   （html 变 flex 容器居中，body 收缩为内容宽度；!important 防止被页面样式覆盖）。
+ * - 页面样式：body 保持占满视口宽度（html flex 兜底居中），
+ *   文本型页面内容自动换行撑满 iframe，与 Markdown 预览一致；
+ *   不用 fit-content 收缩 body，避免窄页面在预览窗口中缩成窄条。
  */
 function htmlWithBase(html: string, filename: string): string {
   const injections: string[] = []
   if (!/<base\s/i.test(html)) injections.push(`<base href="${fileUrl(filename)}">`)
   injections.push(
-    `<style>html{display:flex!important;justify-content:center!important}html,body{margin:0!important}body{width:fit-content!important;max-width:100%!important}</style>`
+    `<style>html{display:flex!important;justify-content:center!important}html,body{margin:0!important}body{width:100%!important}</style>`
   )
   const injection = injections.join('')
   const head = html.match(/<head([^>]*)>/i)

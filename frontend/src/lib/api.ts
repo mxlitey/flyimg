@@ -119,12 +119,14 @@ export function fileUrl(filename: string): string {
 
 /**
  * 是否启用直链预览：
- * - 配置了项目域名（SITE_DOMAIN）且当前页面运行在该域名（或其子域）下 → true，
+ * - 配置了项目域名（SITE_DOMAIN）时，仅当前页面运行在该域名（或其子域）下返回 true，
  *   R2 CORS 已按该域名配置，fetch/canvas 可直连 R2；
- * - 未配置项目域名 → false，所有内容读取直接走 worker 同源代理，不尝试直链。
+ * - 未配置项目域名时也返回 true（只要配置了 R2 直链前缀）：允许尝试直链，
+ *   若桶 CORS 允许当前来源则直链成功，否则读取时自动回退到 worker 代理。
  */
 export function directLinkEnabled(): boolean {
-  if (!fileBaseUrl || !siteDomain) return false
+  if (!fileBaseUrl) return false
+  if (!siteDomain) return true
   const host = window.location.hostname.toLowerCase()
   const domain = siteDomain.replace(/^https?:\/\//i, '').split('/')[0].toLowerCase()
   return host === domain || host.endsWith(`.${domain}`)
