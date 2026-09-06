@@ -257,11 +257,11 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
   }
 
   if (kind === 'video') {
-    return <video controls src={url} style={{ width: '100%', maxHeight: heightStyle, borderRadius: '0.5rem', background: '#000' }} />
+    return <video controls preload="metadata" playsInline src={url} style={{ width: '100%', maxHeight: heightStyle, borderRadius: '0.5rem', background: '#000' }} />
   }
 
   if (kind === 'audio') {
-    return <audio controls src={url} style={{ width: '100%' }} />
+    return <audio controls preload="metadata" src={url} style={{ width: '100%' }} />
   }
 
   if (kind === 'pdf') {
@@ -296,12 +296,17 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
   )
 }
 
-/** 列表缩略图：图片显示缩略图，其他类型显示类型占位 */
-export function FileThumb({ url, filename }: { url: string; filename: string }) {
+/**
+ * 列表缩略图：图片显示缩略图，其他类型显示类型占位（视频/音频等均为静态，不会自动播放）。
+ * 传入 onClick 后支持点击放大预览，悬停显示"点击预览"提示。
+ */
+export function FileThumb({ url, filename, onClick }: { url: string; filename: string; onClick?: () => void }) {
   const kind = getFileKind(filename)
 
-  if (kind === 'image') {
-    return (
+  const overlay = onClick ? <span className="thumb-zoom-overlay">点击预览</span> : null
+
+  const inner =
+    kind === 'image' ? (
       <img
         src={url}
         alt=""
@@ -309,19 +314,21 @@ export function FileThumb({ url, filename }: { url: string; filename: string }) 
         loading="lazy"
         onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
       />
+    ) : (
+      <div
+        style={{
+          width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: '#f5f0e8', color: '#a08d72', fontSize: '0.875rem', fontWeight: 700, letterSpacing: '0.05em',
+        }}
+      >
+        {kind === 'video' ? '视频' : kind === 'audio' ? '音频' : kind === 'pdf' ? 'PDF' : kind === 'zip' ? 'ZIP' : kind === 'markdown' ? 'MD' : kind === 'html' ? 'HTML' : kind === 'text' ? 'TXT' : '文件'}
+      </div>
     )
-  }
-
-  const label = kind === 'video' ? '视频' : kind === 'audio' ? '音频' : kind === 'pdf' ? 'PDF' : kind === 'zip' ? 'ZIP' : kind === 'markdown' ? 'MD' : kind === 'html' ? 'HTML' : kind === 'text' ? 'TXT' : '文件'
 
   return (
-    <div
-      style={{
-        width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#f5f0e8', color: '#a08d72', fontSize: '0.875rem', fontWeight: 700, letterSpacing: '0.05em',
-      }}
-    >
-      {label}
-    </div>
+    <button type="button" className="thumb-zoom" onClick={onClick} aria-label="放大预览" tabIndex={onClick ? 0 : -1}>
+      {inner}
+      {overlay}
+    </button>
   )
 }

@@ -97,3 +97,34 @@ body {
 .markdown-body td { border: 1px solid #e8e0d4; padding: 0.375rem 0.625rem; }
 .markdown-body th { background: #faf7f2; }
 .markdown-body hr { border: none; border-top: 1px solid #eee4d6; margin: 1rem 0; }
+
+/* 缩略图：点击放大预览 */
+.thumb-zoom {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+.thumb-zoom .thumb-zoom-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(90, 70, 50, 0.45);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.thumb-zoom:hover .thumb-zoom-overlay,
+.thumb-zoom:focus-visible .thumb-zoom-overlay {
+  opacity: 1;
+}

@@ -106,12 +106,8 @@ export default function MyImagesPage() {
             const canRenew = (img.renew_count || 0) < renewConfig.max_count
             return (
               <Card key={img.filename} className="overflow-hidden" style={{ padding: 0 }}>
-                <div
-                  style={{ height: 160, cursor: 'pointer' }}
-                  onClick={() => setPreviewTarget(img)}
-                  title="点击预览"
-                >
-                  <FileThumb url={img.url} filename={img.filename} />
+                <div style={{ height: 160 }}>
+                  <FileThumb url={img.url} filename={img.filename} onClick={() => setPreviewTarget(img)} />
                 </div>
                 <div style={{ padding: '0.75rem' }}>
                   <p

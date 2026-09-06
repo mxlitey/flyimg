@@ -285,12 +285,8 @@ export default function AdminPage() {
       render: (_v, record) => {
         const r = record as unknown as ImageItem
         return (
-          <div
-            style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', cursor: 'pointer', opacity: r.expired ? 0.5 : 1 }}
-            onClick={() => setPreviewTarget(r)}
-            title="点击预览"
-          >
-            <FileThumb url={r.url} filename={r.filename} />
+          <div style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', opacity: r.expired ? 0.5 : 1 }}>
+            <FileThumb url={r.url} filename={r.filename} onClick={() => setPreviewTarget(r)} />
           </div>
         )
       },
