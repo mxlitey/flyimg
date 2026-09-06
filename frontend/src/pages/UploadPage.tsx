@@ -148,6 +148,16 @@ export default function UploadPage() {
     if (f) doUpload(f)
   }
 
+  /** 打开文件夹选择器：点击时再次确保 webkitdirectory 生效，并重置 value 允许重复选择同一文件夹 */
+  const openFolderPicker = () => {
+    const el = folderInputRef.current
+    if (el) {
+      el.setAttribute('webkitdirectory', '')
+      el.value = ''
+    }
+    el?.click()
+  }
+
   const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     // 原文件夹名 = webkitRelativePath 首段，用于后端生成与单文件一致规则的新 key
@@ -258,8 +268,9 @@ export default function UploadPage() {
           <input
             ref={(el) => {
               folderInputRef.current = el
-              // React 会把非标准布尔属性以空字符串赋值为 falsy，导致目录选择失效；显式置 true
-              if (el && !el.webkitdirectory) el.webkitdirectory = true
+              // Chrome 的文件选择器读取的是内容属性（content attribute），仅设置 IDL 属性（el.webkitdirectory=true）
+              // 在部分版本首次点击时仍会弹出单文件选择器，需用 setAttribute 启用目录选择
+              if (el && !el.hasAttribute('webkitdirectory')) el.setAttribute('webkitdirectory', '')
             }}
             type="file"
             className="hidden"
@@ -269,7 +280,7 @@ export default function UploadPage() {
             <Button type="default" size="small" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}>
               选择文件
             </Button>
-            <Button type="default" size="small" onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click() }}>
+            <Button type="default" size="small" onClick={(e) => { e.stopPropagation(); openFolderPicker() }}>
               选择文件夹
             </Button>
           </div>
