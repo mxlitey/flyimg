@@ -35,29 +35,44 @@ description: 将生成的产物（图片、PDF、压缩包、代码文件、任�
 
 每次上传按以下步骤执行：
 
-1. **执行上传**：一次调用传入所有要上传的文件路径（单文件或多文件均可）。脚本内部会生成**一个** `user_tag`，所有文件共享同一个 `manage_url`，自动归到同一文件管理链接下。
+1. **执行上传**：一次调用传入所有要上传的文件路径。脚本根据文件数量自动选择上传方式：
+   - **单文件（1 个）**：走单文件上传接口，得到该文件的直链。
+   - **多文件（≥2 个）**：自动合并为一个文件夹，走文件夹上传接口（初始化 → 逐文件上传 → 完成），所有文件共享同一个 `user_tag` 与 `manage_url`，归到同一文件管理链接下，并生成文件夹内各文件直链。
    ```bash
    # 单文件
    bash {baseDir}/scripts/upload.sh "<文件绝对路径>"
 
-   # 多文件（一次提问上传多个文件时，必须用一次调用传所有文件，确保归到同一管理链接）
+   # 多文件（一次提问上传多个文件时，必须用一次调用传所有文件，自动合并为文件夹上传）
    bash {baseDir}/scripts/upload.sh "<文件1绝对路径>" "<文件2绝对路径>" "<文件3绝对路径>"
    ```
 
    > ⚠️ **多文件必须一次调用传完**：不要对每个文件分别调用 `upload.sh`，否则会生成多个 `user_tag`、得到多个管理链接，无法归档。正确做法是把所有文件路径作为参数一次性传给脚本。
+
+   多文件合并规则：
+   - 文件夹内文件默认使用各自文件名；**重名文件自动追加 `-1`、`-2` 等后缀去重**，避免相互覆盖
+   - 全部文件位于同一目录时，文件夹名取该目录名；否则使用通用名「多文件上传」
+   - 类型白名单未开放的文件会被服务端自动跳过，记录在 `skipped` 数组中，不影响其他文件上传
 
    可选：通过 `FLYIMG_USER_TAG` 环境变量复用已有 `user_tag`（跨提问归档场景，未传则自动生成新的）：
    ```bash
    FLYIMG_USER_TAG="<已有 user_tag>" bash {baseDir}/scripts/upload.sh "<文件绝对路径>"
    ```
 2. **解析输出**：脚本以 JSON 形式输出到 stdout：
-   ```json
-   {"success": true, "user_tag": "oc_1719000000_ab12cd34", "manage_url": "https://worker.example.com/oc_1719000000_ab12cd34", "files": [{"url": "https://pub-xxx.r2.dev/1719000000-abcd.jpg", "name": "photo.jpg"}, {"url": "https://pub-xxx.r2.dev/1719000000-efgh.png", "name": "diagram.png"}], "now": "2025-06-30 12:00:00", "expireAt": "2025-06-30 20:00:00", "remainingHours": 8}
-   ```
+   - **单文件**（`mode` 字段不存在）：
+     ```json
+     {"success": true, "user_tag": "oc_1719000000_ab12cd34", "manage_url": "https://worker.example.com/oc_1719000000_ab12cd34", "files": [{"url": "https://pub-xxx.r2.dev/1719000000-abcd.jpg", "name": "photo.jpg"}], "now": "2025-06-30 12:00:00", "expireAt": "2025-06-30 20:00:00", "remainingHours": 8}
+     ```
+   - **多文件**（含 `mode: "folder"`，并多出 `folder_key`、`folder_url`、`skipped`）：
+     ```json
+     {"success": true, "mode": "folder", "user_tag": "oc_1719000000_ab12cd34", "manage_url": "https://worker.example.com/oc_1719000000_ab12cd34", "folder_key": "1719000000-abcdef-多文件上传", "folder_url": "", "files": [{"url": "https://pub-xxx.r2.dev/1719000000-abcdef-多文件上传/photo.jpg", "name": "photo.jpg", "rel_path": "photo.jpg"}, {"url": "https://pub-xxx.r2.dev/1719000000-abcdef-多文件上传/diagram.png", "name": "diagram.png", "rel_path": "diagram.png"}], "skipped": [], "now": "2025-06-30 12:00:00", "expireAt": "2025-06-30 20:00:00", "remainingHours": 8}
+     ```
    字段说明：
    - `user_tag`：本次上传的标识（所有文件共享，无需单独展示给用户）
-   - `manage_url`：**文件管理链接**（= Worker 地址 + `/` + user_tag），浏览器打开可查看/管理本次上传的全部文件
-   - `files`：上传成功的文件数组，每项含 `url`（下载直链）和 `name`（文件名）
+   - `manage_url`：**文件管理链接**（= Worker 地址 + `/` + user_tag），浏览器打开可查看/管理本次上传的全部文件（含文件夹）
+   - `files`：上传成功的文件数组。单文件模式每项含 `url`（下载直链）和 `name`（文件名）；文件夹模式每项含 `url`、`name`、`rel_path`（文件夹内相对路径）
+   - `folder_key`：文件夹模式的文件夹唯一标识（= 文件夹在存储中的 key 前缀），无需单独展示
+   - `folder_url`：文件夹模式的整体预览链接，仅当文件夹根目录存在 `index.html` 时非空，通常为空字符串，不要自行拼接
+   - `skipped`：文件夹模式中因类型未开放等原因被跳过的文件名数组；若 `files` 为空且 `skipped` 非空，说明全部被跳过（脚本会中止并不生成文件夹）
    - `now`：当前北京时间（UTC+8），格式 `YYYY-MM-DD HH:MM:SS`
    - `expireAt`：过期北京时间（UTC+8），格式同上
    - `remainingHours`：**剩余小时数（已向上取整）**，由脚本基于 UTC 时间戳计算，与时区无关
@@ -88,16 +103,18 @@ description: 将生成的产物（图片、PDF、压缩包、代码文件、任�
 >
 > 请在过期前下载。可通过文件管理链接查看/管理本次上传的文件。
 
-**多文件示例回复**（一次上传 3 个文件，归到同一管理链接）：
-> 上传成功！共 3 个文件，已归到同一管理链接下：
+**多文件示例回复**（一次上传 3 个文件，自动合并为文件夹、归到同一管理链接）：
+> 上传成功！共 3 个文件，已合并到文件夹「diagram」：
 >
-> - photo.jpg：https://pub-xxx.r2.dev/1719000000-abcd.jpg
-> - diagram.png：https://pub-xxx.r2.dev/1719000000-efgh.png
-> - archive.zip：https://pub-xxx.r2.dev/1719000000-ijkl.zip
+> - photo.jpg：https://pub-xxx.r2.dev/1719000000-abcdef-diagram/photo.jpg
+> - diagram.png：https://pub-xxx.r2.dev/1719000000-abcdef-diagram/diagram.png
+> - archive.zip：https://pub-xxx.r2.dev/1719000000-abcdef-diagram/archive.zip
 > - 文件管理：https://worker.example.com/oc_1719000000_ab12cd34
 > - 过期时间：2025-06-30 20:00:00（北京时间，约 8 小时后过期）
 >
 > 请在过期前下载。可通过文件管理链接查看/管理本次上传的全部文件。
+
+> 若输出含 `skipped` 非空数组，需在回复中告知用户有哪些文件因类型不支持被跳过。
 
 ## 错误处理
 
