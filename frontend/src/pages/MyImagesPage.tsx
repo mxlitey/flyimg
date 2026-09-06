@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Button, Card, Loading, Tag, Title } from 'animal-island-ui'
 import { fetchMyImages, renewFile, type ImageItem, type RenewConfig } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, formatBytes, formatDate, formatExpireTime, getFileKind } from '../lib/utils'
+import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
@@ -54,11 +54,6 @@ export default function MyImagesPage() {
   }
 
   const openFile = (img: ImageItem) => {
-    // PDF 不在窗口内预览，点击后直接在新标签页打开直链
-    if (getFileKind(img.filename) === 'pdf') {
-      window.open(img.url, '_blank', 'noopener,noreferrer')
-      return
-    }
     setPreviewTarget(img)
   }
 

@@ -73,23 +73,35 @@ function PreviewError({ message }: { message: string }) {
   return <div style={{ textAlign: 'center', padding: '2rem 0', color: '#b91c1c', fontSize: '0.875rem' }}>{message}</div>
 }
 
-/** PDF 不再窗口内预览：展示直链，点击在新标签页打开 */
-function PdfOpenPreview({ url }: { url: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
-      <p style={{ color: mutedColor, margin: '0 0 0.75rem', fontSize: '0.875rem' }}>
-        PDF 不在窗口内预览，请在新标签页打开
-      </p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: '#0f766e', fontSize: '0.875rem', fontWeight: 600 }}
-      >
-        打开直链
-      </a>
-    </div>
-  )
+/**
+ * 音视频预览：直链优先，直链无法加载时自动回退到 worker 同源代理。
+ * 媒体标签加载本身不需要 CORS，但直链域名异常时代理兜底保证可播放。
+ */
+function MediaPreview({ filename, kind, maxHeight = 520 }: { filename: string; kind: 'video' | 'audio'; maxHeight?: number | string }) {
+  const [srcIdx, setSrcIdx] = useState(0)
+  const sources = fileSources(filename)
+  const src = sources[srcIdx]
+  const heightStyle = typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight
+
+  const commonProps = {
+    controls: true,
+    preload: 'metadata' as const,
+    src,
+    onError: () => {
+      if (srcIdx + 1 < sources.length) setSrcIdx(srcIdx + 1)
+    },
+  }
+
+  if (kind === 'video') {
+    return (
+      <video
+        {...commonProps}
+        playsInline
+        style={{ width: '100%', maxHeight: heightStyle, borderRadius: '0.5rem', background: '#000' }}
+      />
+    )
+  }
+  return <audio {...commonProps} style={{ width: '100%' }} />
 }
 
 /** 文本类预览（txt/log/json/代码等），通过 R2 直链读取 */
@@ -371,14 +383,14 @@ export default function FilePreview({ url, filename, maxHeight = 520 }: FilePrev
   }
 
   if (kind === 'video') {
-    return <video controls preload="metadata" playsInline src={url} style={{ width: '100%', maxHeight: heightStyle, borderRadius: '0.5rem', background: '#000' }} />
+    return <MediaPreview filename={filename} kind="video" maxHeight={heightStyle} />
   }
 
   if (kind === 'audio') {
-    return <audio controls preload="metadata" src={url} style={{ width: '100%' }} />
+    return <MediaPreview filename={filename} kind="audio" />
   }
 
-  if (kind === 'pdf') return <PdfOpenPreview url={url} />
+  // PDF 与 zip 等类型一样不做窗口预览：显示"暂不支持在线预览"并提供打开原文件
 
   if (kind === 'markdown') return <MarkdownPreview filename={filename} />
   if (kind === 'html') return <HtmlPreview filename={filename} />

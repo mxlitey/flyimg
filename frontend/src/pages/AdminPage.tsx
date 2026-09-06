@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Card, Input, Loading, Select, Table, Title, type CardColor, type TableColumn } from 'animal-island-ui'
 import { cleanExpired, deleteFile, fetchAllImages, renewFile, type ImageItem, type RenewConfig, type StorageInfo } from '../lib/api'
 import { displayConfig } from '../lib/config'
-import { copyText, formatBytes, formatDate, formatExpireTime, getFileKind } from '../lib/utils'
+import { copyText, formatBytes, formatDate, formatExpireTime } from '../lib/utils'
 import { useToast } from '../components/Toast'
 import ModalShell from '../components/ModalShell'
 import RenewModal from '../components/RenewModal'
@@ -269,11 +269,6 @@ export default function AdminPage() {
   }
 
   const openFile = (r: ImageItem) => {
-    // PDF 不在窗口内预览，点击后直接在新标签页打开直链
-    if (getFileKind(r.filename) === 'pdf') {
-      window.open(r.url, '_blank', 'noopener,noreferrer')
-      return
-    }
     setPreviewTarget(r)
   }
 
