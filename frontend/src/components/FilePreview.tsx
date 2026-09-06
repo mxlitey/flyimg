@@ -412,12 +412,13 @@ const SEEK_TIMEOUT_MS = 8000
 function VideoThumb({ filename }: { filename: string }) {
   const [frame, setFrame] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [srcIdx, setSrcIdx] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  // 仅 R2 直链（预览全部直链，不使用 worker 代理）
+  // 直链优先；直链未配 CORS 被浏览器拦截时，换 worker 同源代理再试
   const sources = fileSources(filename)
-  const src = sources[0]
+  const src = sources[srcIdx]
 
   useEffect(() => {
     const video = videoRef.current
@@ -453,7 +454,11 @@ function VideoThumb({ filename }: { filename: string }) {
       } catch { retry() }
     }
     const onError = () => {
-      // 直链加载失败（如未配 CORS 被浏览器拦截）→ 重试取帧
+      // 当前源加载失败（如直链未配 CORS 被浏览器拦截）→ 换下一个源重试
+      if (srcIdx + 1 < sources.length) {
+        setSrcIdx(srcIdx + 1)
+        return
+      }
       retry()
     }
 
@@ -466,7 +471,7 @@ function VideoThumb({ filename }: { filename: string }) {
       video.removeEventListener('error', onError)
       if (timer) window.clearTimeout(timer)
     }
-  }, [filename, frame])
+  }, [filename, frame, srcIdx, sources.length])
 
   if (frame) {
     return <img src={frame} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />

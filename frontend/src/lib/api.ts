@@ -117,17 +117,32 @@ export function fileUrl(filename: string): string {
   return `${fileBaseUrl}/${encodeURIComponent(filename)}`
 }
 
-// 候选读取源：仅 R2 直链（预览全部走直链，不使用 worker 代理）
+// 候选读取源：R2 直链优先，worker 同源代理兜底
+// （直链未配 CORS 时浏览器会拦截 fetch / canvas 读取，报 "Load failed"，代理不受影响）
 export function fileSources(filename: string): string[] {
-  return fileBaseUrl ? [fileUrl(filename)] : []
+  const candidates: string[] = []
+  if (fileBaseUrl) candidates.push(fileUrl(filename))
+  candidates.push(`${apiBase}/content?filename=${encodeURIComponent(filename)}`)
+  return candidates
 }
 
-// 内容读取：仅使用 R2 直链
+/**
+ * 内容读取：优先 R2 直链（需桶已配 CORS），
+ * 直链被浏览器拦截（未配 CORS）或失败时，自动回退到 worker 同源代理 /content，
+ * 保证 HTML/MD/文本源码预览在任何环境下可用。
+ */
 async function fetchFileBinary(filename: string): Promise<Response> {
-  if (!fileBaseUrl) throw new Error('未配置直链域名，无法直链读取')
-  const resp = await fetch(fileUrl(filename), { mode: 'cors' })
-  if (!resp.ok) throw new Error(`读取文件失败 (${resp.status})`)
-  return resp
+  if (fileBaseUrl) {
+    try {
+      const resp = await fetch(fileUrl(filename), { mode: 'cors' })
+      if (resp.ok) return resp
+    } catch {
+      // 直链跨域被拦截 → 走代理兜底
+    }
+  }
+  const proxy = await fetch(`${apiBase}/content?filename=${encodeURIComponent(filename)}`)
+  if (!proxy.ok) throw new Error(`读取文件失败 (${proxy.status})`)
+  return proxy
 }
 
 export async function fetchFileText(filename: string): Promise<string> {
