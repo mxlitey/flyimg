@@ -178,11 +178,14 @@ function isValidKey(key) {
   return key.split('/').every(seg => seg && seg !== '.' && seg !== '..');
 }
 
-/** 文件夹唯一 key（沿用单文件命名的 时间戳-随机 风格，显示名与 R2 一致） */
-function generateFolderKey() {
+/** 文件夹唯一 key：沿用单文件命名规则（时间戳-随机-清洗后的原文件夹名），显示名与 R2 一致 */
+function generateFolderKey(originalName) {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 10);
-  return `${timestamp}-${random}`;
+  const base = sanitizeOriginalName(originalName || '');
+  return base
+    ? `${timestamp}-${random}-${base}`
+    : `${timestamp}-${random}`;
 }
 
 /** 类型白名单：按扩展名校验（与单文件上传一致），未开放类型直接跳过该文件 */
@@ -550,7 +553,7 @@ async function handleUploadFolderInit(request, env, CONFIG) {
       }, 429, origin, CONFIG);
     }
 
-    const folderKey = generateFolderKey();
+    const folderKey = generateFolderKey(name);
     const timestamp = Date.now();
     const expireAt = new Date(timestamp + CONFIG.EXPIRE_HOURS * 3600000).toISOString();
 

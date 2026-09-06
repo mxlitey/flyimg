@@ -116,14 +116,15 @@ interface UploadFileItem {
 export async function uploadFolder(
   files: UploadFileItem[],
   userTag: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  folderName = ''
 ): Promise<FolderUploadResult> {
   const totalBytes = files.reduce((s, f) => s + f.file.size, 0)
 
   const initResp = await fetch(`${apiBase}/upload-folder/init`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_tag: userTag, total_size: totalBytes, file_count: files.length }),
+    body: JSON.stringify({ user_tag: userTag, total_size: totalBytes, file_count: files.length, name: folderName }),
   })
   const initData = (await initResp.json()) as { success: boolean; folder_key: string; error?: string }
   if (!initData.success) throw new Error(initData.error || '初始化上传失败')

@@ -89,8 +89,8 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<UploadResultState | null>(null)
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const folderInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const folderInputRef = useRef<HTMLInputElement | null>(null)
   const [dragOver, setDragOver] = useState(false)
 
   const doUpload = useCallback(
@@ -114,11 +114,11 @@ export default function UploadPage() {
   )
 
   const doUploadFolder = useCallback(
-    async (items: FolderFileItem[]) => {
+    async (items: FolderFileItem[], folderName = '') => {
       setPhase('uploading')
       setProgress(0)
       try {
-        const data = await uploadFolder(items, userTag.trim(), (p) => setProgress(p))
+        const data = await uploadFolder(items, userTag.trim(), (p) => setProgress(p), folderName)
         setProgress(100)
         await new Promise((r) => setTimeout(r, 500))
         setResult({
@@ -150,13 +150,15 @@ export default function UploadPage() {
 
   const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
+    // 原文件夹名 = webkitRelativePath 首段，用于后端生成与单文件一致规则的新 key
+    const folderName = ((files[0] as File & { webkitRelativePath?: string })?.webkitRelativePath || '').split('/')[0] || ''
     const items = files
       .map((f) => ({
         file: f,
         relPath: stripRootFolder((f as File & { webkitRelativePath?: string }).webkitRelativePath || ''),
       }))
       .filter((it) => it.relPath)
-    if (items.length > 0) doUploadFolder(items)
+    if (items.length > 0) doUploadFolder(items, folderName)
   }
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -170,9 +172,10 @@ export default function UploadPage() {
       const entry = getEntry[0].webkitGetAsEntry()
       if (entry) {
         const isDir = (entry as { isDirectory?: boolean }).isDirectory
+        const folderName = (entry as { name?: string }).name || ''
         const files = await walkEntry(entry)
         if (isDir && files.length > 0) {
-          doUploadFolder(files)
+          doUploadFolder(files, folderName)
           return
         }
       }
@@ -253,11 +256,13 @@ export default function UploadPage() {
           </p>
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
           <input
-            ref={folderInputRef}
+            ref={(el) => {
+              folderInputRef.current = el
+              // React 会把非标准布尔属性以空字符串赋值为 falsy，导致目录选择失效；显式置 true
+              if (el && !el.webkitdirectory) el.webkitdirectory = true
+            }}
             type="file"
             className="hidden"
-            // @ts-expect-error webkitdirectory 为非标准属性
-            webkitdirectory=""
             onChange={handleFolderChange}
           />
           <div className="flex justify-center gap-2" style={{ marginTop: '1rem' }}>

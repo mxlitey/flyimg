@@ -771,7 +771,7 @@ export function FolderPreview({ folder, userTag = '' }: { folder: FolderItem; us
             {active.rel_path}
           </span>
         </div>
-        <FilePreview url={active.url} filename={active.rel_path} />
+        <FilePreview url={active.url} filename={`${folder.folder_key}/${active.rel_path}`} />
       </div>
     )
   }
@@ -789,7 +789,7 @@ export function FolderPreview({ folder, userTag = '' }: { folder: FolderItem; us
               fontSize: '0.8125rem', cursor: 'pointer',
             }}
           >
-            渲染首页
+            首页
           </button>
           <button
             type="button"
@@ -805,7 +805,7 @@ export function FolderPreview({ folder, userTag = '' }: { folder: FolderItem; us
         </div>
       )}
       {hasIndex && mode === 'render' ? (
-        <HtmlPreview filename={indexFilename} />
+        <FilePreview url={folder.url} filename={indexFilename} />
       ) : (
         <FolderTree folderKey={folder.folder_key} userTag={userTag} onOpen={setActive} />
       )}
