@@ -78,6 +78,11 @@ export default function UploadPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  // 上传结果文件名与类型（用于决定预览/占位）
+  const resultFilename = result ? decodeURIComponent(result.url.split('/').pop() || '') : ''
+  const resultKind = result ? getFileKind(resultFilename) : 'other'
+  const resultPreviewable = resultKind === 'image' || resultKind === 'video' || resultKind === 'audio' || resultKind === 'markdown' || resultKind === 'html' || resultKind === 'text'
+
   return (
     <div onPaste={handlePaste}>
       {/* 标题区 */}
@@ -154,23 +159,23 @@ export default function UploadPage() {
           </div>
 
           {result.url && (
-            (() => {
-              const filename = decodeURIComponent(result.url.split('/').pop() || '')
-              const kind = getFileKind(filename)
-              const previewable = kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'markdown' || kind === 'html' || kind === 'text'
-              return previewable ? (
-                <div className="mb-6">
-                  <FilePreview url={result.url} filename={filename} maxHeight={320} />
-                </div>
-              ) : (
-                // 不支持预览的类型：与"我的文件"缩略图一致，显示后缀占位
-                <div className="mb-6">
-                  <div style={{ width: 200, height: 150, margin: '0 auto' }}>
-                    <OtherThumb filename={filename} />
-                  </div>
-                </div>
-              )
-            })()
+            <div className="mb-6">
+              {/* 预览容器固定为缩略图同款尺寸（200×160），不随预览内容变化；超出部分内部滚动 */}
+              <div
+                style={{
+                  width: 200, height: 160, margin: '0 auto',
+                  overflowY: 'auto', overflowX: 'hidden',
+                  background: '#fff', border: '1px solid #eee4d6', borderRadius: '0.5rem',
+                }}
+              >
+                {resultPreviewable ? (
+                  <FilePreview url={result.url} filename={resultFilename} maxHeight={160} />
+                ) : (
+                  // 不支持预览的类型：与"我的文件"缩略图一致，显示后缀占位
+                  <OtherThumb filename={resultFilename} />
+                )}
+              </div>
+            </div>
           )}
 
           <div className="space-y-3" style={{ textAlign: 'left' }}>
