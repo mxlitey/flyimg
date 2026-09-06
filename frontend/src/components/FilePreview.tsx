@@ -23,7 +23,7 @@ import plaintext from 'highlight.js/lib/languages/plaintext'
 import 'highlight.js/styles/github.css'
 import DOMPurify from 'dompurify'
 import { getFileKind, getFileExt, type FileKind } from '../lib/utils'
-import { fetchFileText, fileSources } from '../lib/api'
+import { fetchFileText, fileSources, fileUrl } from '../lib/api'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -153,11 +153,22 @@ function MarkdownPreview({ filename }: { filename: string }) {
 }
 
 /**
+ * 给 HTML 源码注入 <base>，让源码里的相对路径子资源（css/图片/字体等）
+ * 相对该文件的直链解析；源码已有 <base> 时不注入，避免覆盖作者设置。
+ */
+function htmlWithBase(html: string, filename: string): string {
+  if (/<base\s/i.test(html)) return html
+  const baseTag = `<base href="${fileUrl(filename)}">`
+  const head = html.match(/<head([^>]*)>/i)
+  return head ? html.replace(head[0], `${head[0]}${baseTag}`) : `${baseTag}${html}`
+}
+
+/**
  * HTML 预览：源码 / 渲染 两种模式。
  * 渲染模式：直链 CORS 读取 HTML 内容，再通过 sandbox iframe 的 srcDoc 内联渲染。
  * 直链域名响应带 X-Frame-Options 帧嵌入限制，跨域 iframe 会被浏览器屏蔽（“内容被屏蔽”），
  * 而 srcDoc 不向直链域名发起请求，可绕开该限制且内容仍由直链读取。
- * sandbox 禁脚本；相对路径子资源（css/js/图片）无法解析，建议内联样式。
+ * sandbox 禁脚本；注入 <base> 后相对路径子资源按直链解析。
  */
 function HtmlPreview({ filename }: { filename: string }) {
   const [mode, setMode] = useState<'source' | 'render'>('render')
@@ -212,11 +223,11 @@ function HtmlPreview({ filename }: { filename: string }) {
           <iframe
             title="HTML 渲染预览"
             sandbox=""
-            srcDoc={html}
+            srcDoc={htmlWithBase(html, filename)}
             style={{ width: '100%', height: 520, border: '1px solid #e8e0d4', borderRadius: '0.5rem', background: '#fff' }}
           />
           <p style={{ color: mutedColor, fontSize: '0.75rem', margin: '0.5rem 0 0' }}>
-            渲染为安全沙箱模式（脚本已禁用）；相对路径的子资源可能无法加载，建议使用内联样式。
+            渲染为安全沙箱模式（脚本已禁用）；相对路径的 css/图片 已按直链解析。
           </p>
         </div>
       )}
@@ -251,7 +262,7 @@ function HtmlThumb({ filename }: { filename: string }) {
       <iframe
         title=""
         sandbox=""
-        srcDoc={html}
+        srcDoc={htmlWithBase(html, filename)}
         loading="lazy"
         style={{
           width: '400%', height: '400%', border: 'none',
