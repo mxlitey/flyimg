@@ -148,7 +148,12 @@ function generateFileName(mimeType, originalExt, originalName) {
     const cleaned = originalExt ? originalExt.toLowerCase().replace(/^[.]+/, '') : '';
     ext = cleaned || getFileExtension(mimeType);
   }
-  const base = sanitizeOriginalName(originalName);
+  let base = sanitizeOriginalName(originalName);
+  // 文件名含中文时将其百分号转义为 ASCII，避免直链中的中文导致 IM 截断；
+  // 无中文则保持原始文件名不变
+  if (/[\u4e00-\u9fa5]/.test(base)) {
+    base = encodeURIComponent(base);
+  }
   return base
     ? `${timestamp}-${random1}-${base}.${ext}`
     : `${timestamp}-${random1}.${ext}`;
