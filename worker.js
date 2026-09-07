@@ -89,6 +89,8 @@ const RATE_LIMITS = {
 const DEFAULT_PAGE_LIMIT = 50;
 const MAX_PAGE_LIMIT = 100;
 const PERMANENT_EXPIRY = '2099-12-31T23:59:59Z';
+// multipart 请求体中除文件内容外的字段/boundary 等开销，Content-Length 提前检查时留出余量（避免误伤接近上限的文件）
+const MULTIPART_OVERHEAD = 1024 * 1024;
 
 const rateLimitStore = new Map();
 
@@ -340,7 +342,8 @@ function getConfig(env) {
     R2_BUCKET: env.R2_BUCKET,
     R2_PUBLIC_DOMAIN: sanitizeR2Domain(env.R2_PUBLIC_DOMAIN),
     EXPIRE_HOURS: expireHours,
-    MAX_FILE_SIZE: parseInt(env.MAX_FILE_SIZE || '20', 10) * 1024 * 1024,
+    // MAX_FILE_SIZE 上限 100MB（Cloudflare Workers 免费版单请求体上限），超限强制重置为 100
+    MAX_FILE_SIZE: Math.min(parseInt(env.MAX_FILE_SIZE || '20', 10) || 20, 100) * 1024 * 1024,
     MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000', 10) * 1024 * 1024,
     ALLOWED_TYPES: unlimitedTypes ? [] : allowedTypesRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
     UNLIMITED_TYPES: unlimitedTypes,
@@ -412,6 +415,17 @@ async function handleUpload(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
 
   try {
+    // 提前按 Content-Length 拦截超大请求体，避免流量浪费（multipart 开销留 1MB 余量）；
+    // 无 Content-Length（chunked）时由下方 formData 解析后的 file.size 检查兜底
+    const rawContentLength = request.headers.get('Content-Length');
+    if (rawContentLength) {
+      const contentLength = parseInt(rawContentLength, 10);
+      if (!isNaN(contentLength) && contentLength > CONFIG.MAX_FILE_SIZE + MULTIPART_OVERHEAD) {
+        const maxMB = CONFIG.MAX_FILE_SIZE / (1024 * 1024);
+        return jsonResponse({ error: `文件大小超过${maxMB}MB限制` }, 413, origin, CONFIG);
+      }
+    }
+
     const formData = await request.formData();
     const file = formData.get('file');
     const rawUserTag = formData.get('user_tag');
@@ -576,6 +590,17 @@ async function handleUploadFolderFile(request, env, CONFIG) {
   const origin = request.headers.get('Origin');
 
   try {
+    // 提前按 Content-Length 拦截超大请求体，避免流量浪费（multipart 开销留 1MB 余量）；
+    // 无 Content-Length（chunked）时由下方 formData 解析后的 file.size 检查兜底
+    const rawContentLength = request.headers.get('Content-Length');
+    if (rawContentLength) {
+      const contentLength = parseInt(rawContentLength, 10);
+      if (!isNaN(contentLength) && contentLength > CONFIG.MAX_FILE_SIZE + MULTIPART_OVERHEAD) {
+        const maxMB = CONFIG.MAX_FILE_SIZE / (1024 * 1024);
+        return jsonResponse({ error: `文件大小超过${maxMB}MB限制` }, 413, origin, CONFIG);
+      }
+    }
+
     const formData = await request.formData();
     const file = formData.get('file');
     const folderKey = String(formData.get('folder_key') || '');
@@ -584,6 +609,12 @@ async function handleUploadFolderFile(request, env, CONFIG) {
 
     if (!file) {
       return jsonResponse({ error: '缺少文件' }, 400, origin, CONFIG);
+    }
+
+    // 文件夹逐文件上传同样受 MAX_FILE_SIZE 限制（兜底，未带 Content-Length 时也能拦截）
+    if (file.size > CONFIG.MAX_FILE_SIZE) {
+      const maxMB = CONFIG.MAX_FILE_SIZE / (1024 * 1024);
+      return jsonResponse({ error: `文件大小超过${maxMB}MB限制` }, 413, origin, CONFIG);
     }
     if (!isValidKey(folderKey)) {
       return jsonResponse({ error: '无效的文件夹' }, 400, origin, CONFIG);
