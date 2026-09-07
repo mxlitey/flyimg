@@ -89,8 +89,12 @@ const RATE_LIMITS = {
 const DEFAULT_PAGE_LIMIT = 50;
 const MAX_PAGE_LIMIT = 100;
 const PERMANENT_EXPIRY = '2099-12-31T23:59:59Z';
+// Cloudflare Workers 免费版单请求体（request body）上限
+const PLATFORM_BODY_LIMIT = 100 * 1024 * 1024;
 // multipart 请求体中除文件内容外的字段/boundary 等开销，Content-Length 提前检查时留出余量（避免误伤接近上限的文件）
 const MULTIPART_OVERHEAD = 1024 * 1024;
+// MAX_FILE_SIZE 上限：平台请求体上限减去 multipart 开销余量，保证"文件内容 + 请求体开销"不超出平台限制
+const MAX_FILE_SIZE_LIMIT_MB = Math.floor((PLATFORM_BODY_LIMIT - MULTIPART_OVERHEAD) / (1024 * 1024));
 
 const rateLimitStore = new Map();
 
@@ -342,8 +346,9 @@ function getConfig(env) {
     R2_BUCKET: env.R2_BUCKET,
     R2_PUBLIC_DOMAIN: sanitizeR2Domain(env.R2_PUBLIC_DOMAIN),
     EXPIRE_HOURS: expireHours,
-    // MAX_FILE_SIZE 上限 100MB（Cloudflare Workers 免费版单请求体上限），超限强制重置为 100
-    MAX_FILE_SIZE: Math.min(parseInt(env.MAX_FILE_SIZE || '20', 10) || 20, 100) * 1024 * 1024,
+    // MAX_FILE_SIZE 上限 = 平台请求体上限（100MB）− multipart 开销余量（1MB）= 99MB：
+    // 保证文件内容 + multipart 开销不超出 Cloudflare Workers 免费版单请求体上限，超限配置强制重置
+    MAX_FILE_SIZE: Math.min(parseInt(env.MAX_FILE_SIZE || '20', 10) || 20, MAX_FILE_SIZE_LIMIT_MB) * 1024 * 1024,
     MAX_STORAGE_SIZE: parseInt(env.MAX_STORAGE_SIZE || '1000', 10) * 1024 * 1024,
     ALLOWED_TYPES: unlimitedTypes ? [] : allowedTypesRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
     UNLIMITED_TYPES: unlimitedTypes,
