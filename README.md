@@ -109,7 +109,7 @@
 | Variable 名称 | 默认值 | 说明 |
 |---|---|---|
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时） |
-| `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
+| `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB），**最大 99**（Cloudflare Workers 免费版单请求体上限 100MB 减去 multipart 开销余量，超过 99 自动重置为 99）。单文件上传与文件夹逐文件上传均受此限制 |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
 | `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型。文件夹上传时，未开放类型的文件会被**自动跳过**，不影响文件夹内其他文件上传 |
 | `CORS_ALLOWED_ORIGINS` | `*`（允许所有） | 允许的跨域来源，逗号分隔 |
@@ -444,7 +444,7 @@ curl https://your-worker.workers.dev/stats
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `EXPIRE_HOURS` | `12` | 文件过期时间（小时），同时决定 R2 缓存的 max-age |
-| `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB） |
+| `MAX_FILE_SIZE` | `20` | 单文件大小限制（MB），**最大 99**（Cloudflare Workers 免费版单请求体上限 100MB 减去 multipart 开销余量，超过 99 自动重置为 99）。单文件上传与文件夹逐文件上传均受此限制 |
 | `MAX_STORAGE_SIZE` | `1000` | 总存储上限（MB） |
 | `ALLOWED_TYPES` | `jpg,png,gif,webp,svg` | 允许的文件扩展名，逗号分隔，不区分大小写；设为 `*` 表示不限制文件类型。文件夹上传时，未开放类型的文件会被**自动跳过**，不影响文件夹内其他文件上传 |
 | `CORS_ALLOWED_ORIGINS` | `*` | 允许的跨域来源，逗号分隔 |
